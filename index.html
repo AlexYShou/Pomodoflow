@@ -167,6 +167,7 @@
     #music-popover-card,
     #custom-duration-dialog,
     #add-task-dialog,
+    #reminder-confirm-dialog,
     #pixel-volume-slider,
     #pixel-volume-fill {
       transition: background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
@@ -928,6 +929,62 @@
     </div>
   </div>
 
+  <!-- ========================================================================= -->
+  <!-- MODAL 3: 番茄钟运行切换 / 重置 / 劳逸结合提醒弹窗 (主题色自适应)            -->
+  <!-- ========================================================================= -->
+  <div id="reminder-confirm-modal"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="reminder-modal-title"
+       aria-describedby="reminder-modal-desc"
+       class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div id="reminder-confirm-dialog"
+         class="w-full max-w-sm rounded-[32px] p-6 shadow-2xl border"
+         style="background-color: var(--md-surface-card); border-color: var(--md-outline); color: var(--md-text-main); box-shadow: 0 20px 44px -12px var(--md-shadow);">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div class="flex items-center gap-3">
+          <div id="reminder-modal-badge"
+               class="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 m3-SurfaceTransition"
+               style="background-color: var(--md-primary-container); color: var(--md-on-primary-container);">
+            <svg id="reminder-modal-icon" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <h3 id="reminder-modal-title" class="text-xl font-extrabold tracking-tight" style="color: var(--md-text-main);">
+            放弃本次专注？
+          </h3>
+        </div>
+        <button id="close-reminder-modal" type="button"
+                class="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 m3-Interactive"
+                style="background-color: var(--md-surface); color: var(--md-text-main);"
+                aria-label="关闭提醒弹窗">
+          ✕
+        </button>
+      </div>
+
+      <p id="reminder-modal-desc"
+         class="text-sm font-semibold leading-relaxed mb-6 pl-[52px]"
+         style="color: var(--md-text-muted);">
+        本次番茄钟将不计为一次专注记录，但已累计的专注时长会保留。
+      </p>
+
+      <div class="flex items-center justify-end gap-2.5">
+        <button id="cancel-reminder-btn" type="button"
+                class="px-5 py-2.5 rounded-2xl text-xs font-bold m3-Interactive"
+                style="background-color: var(--md-surface); color: var(--md-text-muted);">
+          取消
+        </button>
+        <button id="confirm-reminder-btn" type="button"
+                class="px-6 py-2.5 rounded-2xl text-xs font-bold shadow-sm m3-Interactive"
+                style="background-color: var(--md-primary); color: var(--md-on-primary);">
+          确定
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Dual Audio Decks for Smooth Crossfading Between Full-Length Pixabay Music Streams -->
   <audio id="lofi-online-audio" preload="auto"></audio>
   <audio id="station-deck-b" preload="auto"></audio>
@@ -1405,6 +1462,12 @@
 
       completedFocusSessions: 0,
       completedFocusMinutes: 0,
+      completedFocusRemainderSeconds: 0,
+      restCycleStandardSessions: 0,
+      restCycleFocusMinutes: 0,
+      restCycleRemainderSeconds: 0,
+      sessionElapsedMs: 0,
+      lastTickStartMs: null,
       tasks: [],
 
       // Music & Ambient State (100% Real-Time Open Network Discovery — No Built-in Fixed Playlist)
@@ -1567,6 +1630,10 @@
         tasks: state.tasks,
         completedFocusSessions: state.completedFocusSessions,
         completedFocusMinutes: state.completedFocusMinutes,
+        completedFocusRemainderSeconds: state.completedFocusRemainderSeconds,
+        restCycleStandardSessions: state.restCycleStandardSessions,
+        restCycleFocusMinutes: state.restCycleFocusMinutes,
+        restCycleRemainderSeconds: state.restCycleRemainderSeconds,
         focusDuration: state.durations.focus,
         darkMode: themeSwitchState.checked
       };
@@ -1588,7 +1655,28 @@
         state.completedFocusSessions = parsed.completedFocusSessions;
       }
       if (typeof parsed.completedFocusMinutes === 'number' && parsed.completedFocusMinutes >= 0) {
-        state.completedFocusMinutes = parsed.completedFocusMinutes;
+        // Clean up legacy 1-min rounding artifact if migrating from schema without completedFocusRemainderSeconds
+        if (typeof parsed.completedFocusRemainderSeconds !== 'number' && parsed.completedFocusSessions === 0 && parsed.completedFocusMinutes <= 2) {
+          state.completedFocusMinutes = 0;
+        } else {
+          state.completedFocusMinutes = parsed.completedFocusMinutes;
+        }
+      }
+      if (typeof parsed.completedFocusRemainderSeconds === 'number' && parsed.completedFocusRemainderSeconds >= 0) {
+        state.completedFocusRemainderSeconds = Math.floor(parsed.completedFocusRemainderSeconds) % 60;
+      }
+      if (typeof parsed.restCycleStandardSessions === 'number' && parsed.restCycleStandardSessions >= 0) {
+        state.restCycleStandardSessions = parsed.restCycleStandardSessions;
+      }
+      if (typeof parsed.restCycleFocusMinutes === 'number' && parsed.restCycleFocusMinutes >= 0) {
+        if (typeof parsed.completedFocusRemainderSeconds !== 'number' && parsed.completedFocusSessions === 0 && parsed.restCycleFocusMinutes <= 2) {
+          state.restCycleFocusMinutes = 0;
+        } else {
+          state.restCycleFocusMinutes = parsed.restCycleFocusMinutes;
+        }
+      }
+      if (typeof parsed.restCycleRemainderSeconds === 'number' && parsed.restCycleRemainderSeconds >= 0) {
+        state.restCycleRemainderSeconds = Math.floor(parsed.restCycleRemainderSeconds) % 60;
       }
       if (!state.isRunning && typeof parsed.focusDuration === 'number' && parsed.focusDuration >= 1 && parsed.focusDuration <= 180) {
         state.durations.focus = parsed.focusDuration;
@@ -1732,6 +1820,10 @@
         state.tasks = [];
         state.completedFocusSessions = 0;
         state.completedFocusMinutes = 0;
+        state.completedFocusRemainderSeconds = 0;
+        state.restCycleStandardSessions = 0;
+        state.restCycleFocusMinutes = 0;
+        state.restCycleRemainderSeconds = 0;
         saveDailyDataToStorage();
         renderTasksAndOverview('all');
       }
@@ -1807,6 +1899,15 @@
     const modalTaskTitle = document.getElementById('modal-task-title');
     const modalTaskFocused = document.getElementById('modal-task-focused');
 
+    const reminderConfirmModal = document.getElementById('reminder-confirm-modal');
+    const reminderConfirmDialog = document.getElementById('reminder-confirm-dialog');
+    const reminderModalTitle = document.getElementById('reminder-modal-title');
+    const reminderModalDesc = document.getElementById('reminder-modal-desc');
+    const reminderModalIcon = document.getElementById('reminder-modal-icon');
+    const closeReminderModalBtn = document.getElementById('close-reminder-modal');
+    const cancelReminderBtn = document.getElementById('cancel-reminder-btn');
+    const confirmReminderBtn = document.getElementById('confirm-reminder-btn');
+
     const deckA = document.getElementById('lofi-online-audio');
     const deckB = document.getElementById('station-deck-b');
 
@@ -1841,10 +1942,10 @@
       });
     });
 
-    [closeDurationModal, closeTaskModal].forEach(btn => {
+    [closeDurationModal, closeTaskModal, closeReminderModalBtn].forEach(btn => {
       registerSpringElement(btn, { radii: [16, 16, 16, 16], hoverRadii: [20, 20, 20, 20], activeRadii: [12, 12, 12, 12], hoverScale: 1.1 });
     });
-    [cancelDurationBtn, saveDurationBtn, cancelTaskModalBtn, submitTaskModalBtn].forEach(btn => {
+    [cancelDurationBtn, saveDurationBtn, cancelTaskModalBtn, submitTaskModalBtn, cancelReminderBtn, confirmReminderBtn].forEach(btn => {
       registerSpringElement(btn, { radii: [16, 16, 16, 16], hoverRadii: [22, 22, 22, 22], activeRadii: [12, 12, 12, 12], hoverScale: 1.05, activeScaleX: 1.08, activeScaleY: 0.92 });
     });
     [customFocusInput, modalTaskTitle, modalTaskFocused].forEach(inp => {
@@ -3773,6 +3874,128 @@
       updateControlRowSprings();
     }
 
+    // =========================================================================
+    // REMINDER & CONFIRMATION MODAL CONTROLLER (Requirements #1 - #6)
+    // =========================================================================
+    let activeReminderConfirmCallback = null;
+    let activeReminderCancelCallback = null;
+    let wasRunningBeforeReminderModal = false;
+
+    function resetRestReminderCycle() {
+      state.restCycleStandardSessions = 0;
+      state.restCycleFocusMinutes = 0;
+      state.restCycleRemainderSeconds = 0;
+      saveDailyDataToStorage();
+    }
+
+    function getElapsedFocusSecondsForAbandon() {
+      const totalElapsedMs = (state.sessionElapsedMs || 0) +
+        (state.isRunning && state.lastTickStartMs ? Math.max(0, Date.now() - state.lastTickStartMs) : 0);
+      const preciseElapsedSecs = Math.floor(totalElapsedMs / 1000);
+      const clockElapsedSecs = Math.max(0, state.totalSecondsForSession - state.timeLeftSeconds);
+      const effectiveSecs = preciseElapsedSecs > 0 ? preciseElapsedSecs : clockElapsedSecs;
+      return Math.max(0, Math.min(state.totalSecondsForSession, effectiveSecs));
+    }
+
+    function recordAbandonedFocusElapsedMinutes() {
+      const elapsedSecs = getElapsedFocusSecondsForAbandon();
+      if (elapsedSecs <= 0) return;
+
+      // Precisely accumulate elapsed seconds in background:
+      // - If total accumulated seconds < 60, keep in remainder without displaying a false +1 minute.
+      // - Once accumulated seconds >= 60, convert each full 60s into +1 visible minute in 「专注时长」
+      //   and keep the leftover seconds (< 60s) for future accumulation!
+      const totalFocusCarrySecs = (state.completedFocusRemainderSeconds || 0) + elapsedSecs;
+      const addedWholeMinutes = Math.floor(totalFocusCarrySecs / 60);
+      state.completedFocusRemainderSeconds = totalFocusCarrySecs % 60;
+
+      const totalRestCarrySecs = (state.restCycleRemainderSeconds || 0) + elapsedSecs;
+      const addedRestMinutes = Math.floor(totalRestCarrySecs / 60);
+      state.restCycleRemainderSeconds = totalRestCarrySecs % 60;
+
+      if (addedWholeMinutes > 0) {
+        state.completedFocusMinutes += addedWholeMinutes;
+      }
+      if (addedRestMinutes > 0) {
+        state.restCycleFocusMinutes += addedRestMinutes;
+      }
+
+      saveDailyDataToStorage();
+      renderTasksAndOverview(addedWholeMinutes > 0 ? 'minutesOnly' : null);
+    }
+
+    function setReminderModalIconByType(iconType) {
+      if (!reminderModalIcon) return;
+      if (iconType === 'celebrate') {
+        reminderModalIcon.innerHTML = `
+          <path d="M12 2v4"></path>
+          <path d="M12 18v4"></path>
+          <path d="M4.93 4.93l2.83 2.83"></path>
+          <path d="M16.24 16.24l2.83 2.83"></path>
+          <path d="M2 12h4"></path>
+          <path d="M18 12h4"></path>
+          <circle cx="12" cy="12" r="4"></circle>
+        `;
+      } else {
+        reminderModalIcon.innerHTML = `
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        `;
+      }
+    }
+
+    function openReminderModal({ title, desc, iconType = 'alert', pauseWhileOpen = true, onConfirm = null, onCancel = null }) {
+      wasRunningBeforeReminderModal = Boolean(pauseWhileOpen && state.isRunning);
+      if (wasRunningBeforeReminderModal) {
+        pauseTimer();
+      }
+      reminderModalTitle.textContent = title;
+      reminderModalDesc.textContent = desc;
+      setReminderModalIconByType(iconType);
+
+      activeReminderConfirmCallback = onConfirm;
+      activeReminderCancelCallback = onCancel;
+
+      reminderConfirmModal.classList.remove('hidden');
+      reminderConfirmModal.classList.add('flex');
+      lockBodyScroll();
+
+      const dSpring = springElements.get(reminderConfirmDialog);
+      if (dSpring) {
+        dSpring.scaleX.current = 0.88;
+        dSpring.scaleY.current = 0.88;
+        dSpring.scaleX.setTarget(1, 0.04);
+        dSpring.scaleY.setTarget(1, 0.04);
+        wakeSpringLoop();
+      }
+      setTimeout(() => confirmReminderBtn.focus(), 40);
+    }
+
+    function hideReminderModal({ resumeIfCanceled = false } = {}) {
+      reminderConfirmModal.classList.add('hidden');
+      reminderConfirmModal.classList.remove('flex');
+      unlockBodyScroll();
+
+      const cancelCb = activeReminderCancelCallback;
+      activeReminderConfirmCallback = null;
+      activeReminderCancelCallback = null;
+
+      if (resumeIfCanceled) {
+        if (typeof cancelCb === 'function') {
+          cancelCb();
+        }
+        if (wasRunningBeforeReminderModal && !state.isRunning) {
+          startTimer();
+        }
+      }
+      wasRunningBeforeReminderModal = false;
+    }
+
+    function isPomodoroSessionActive() {
+      return state.isRunning || state.timeLeftSeconds < state.totalSecondsForSession || (state.sessionElapsedMs || 0) > 0;
+    }
+
     function switchMode(newMode) {
       if (state.isRunning) {
         pauseTimer();
@@ -3784,6 +4007,8 @@
       state.totalSecondsForSession = mins * 60;
       state.timeLeftSeconds = mins * 60;
       state.timerEndTimestamp = null;
+      state.sessionElapsedMs = 0;
+      state.lastTickStartMs = null;
 
       const modeButtons = [
         { key: 'focus', btn: modeFocusBtn },
@@ -3806,6 +4031,124 @@
       updateClockUI();
     }
 
+    function requestModeSwitch(targetMode) {
+      if (targetMode === state.mode) return;
+
+      // Only show reminder modal when the Pomodoro timer is running / active
+      if (!isPomodoroSessionActive()) {
+        switchMode(targetMode);
+        return;
+      }
+
+      const currentMode = state.mode;
+
+      // 1. 从「专注」切换到「短歇」或「长歇」
+      if (currentMode === 'focus' && (targetMode === 'shortBreak' || targetMode === 'longBreak')) {
+        openReminderModal({
+          title: '放弃本次专注？',
+          desc: '本次番茄钟将不计为一次专注记录，但已累计的专注时长会保留。',
+          iconType: 'alert',
+          pauseWhileOpen: true,
+          onConfirm: () => {
+            recordAbandonedFocusElapsedMinutes();
+            switchMode(targetMode);
+          }
+        });
+        return;
+      }
+
+      // 2. 从「短歇」和「长歇」切换到「专注」
+      if ((currentMode === 'shortBreak' || currentMode === 'longBreak') && targetMode === 'focus') {
+        openReminderModal({
+          title: '跳过本次休息？',
+          desc: '开始下一轮专注。',
+          iconType: 'alert',
+          pauseWhileOpen: true,
+          onConfirm: () => {
+            if (currentMode === 'longBreak') {
+              resetRestReminderCycle();
+            }
+            switchMode('focus');
+          }
+        });
+        return;
+      }
+
+      // 3. 从「短歇」切换到「长歇」
+      if (currentMode === 'shortBreak' && targetMode === 'longBreak') {
+        openReminderModal({
+          title: '更改休息时长？',
+          desc: '多休息一会，恢复好状态再继续专注。',
+          iconType: 'alert',
+          pauseWhileOpen: true,
+          onConfirm: () => {
+            switchMode('longBreak');
+          }
+        });
+        return;
+      }
+
+      // 4. 从「长歇」切换到「短歇」
+      if (currentMode === 'longBreak' && targetMode === 'shortBreak') {
+        openReminderModal({
+          title: '更改休息时长？',
+          desc: '稍作休息，调整好状态再继续专注。',
+          iconType: 'alert',
+          pauseWhileOpen: true,
+          onConfirm: () => {
+            resetRestReminderCycle();
+            switchMode('shortBreak');
+          }
+        });
+        return;
+      }
+
+      switchMode(targetMode);
+    }
+
+    function requestTimerReset() {
+      if (!isPomodoroSessionActive()) {
+        resetTimer();
+        return;
+      }
+
+      const currentMode = state.mode;
+
+      // 1. 在「专注」运行中点击「重置」
+      if (currentMode === 'focus') {
+        openReminderModal({
+          title: '放弃本次专注？',
+          desc: '本次番茄钟将不计为一次专注记录，但已累计的专注时长会保留。',
+          iconType: 'alert',
+          pauseWhileOpen: true,
+          onConfirm: () => {
+            recordAbandonedFocusElapsedMinutes();
+            resetTimer();
+          }
+        });
+        return;
+      }
+
+      // 2. 在「短歇」或「长歇」运行中点击「重置」
+      if (currentMode === 'shortBreak' || currentMode === 'longBreak') {
+        openReminderModal({
+          title: '跳过本次休息？',
+          desc: '开始下一轮专注。',
+          iconType: 'alert',
+          pauseWhileOpen: true,
+          onConfirm: () => {
+            if (currentMode === 'longBreak') {
+              resetRestReminderCycle();
+            }
+            switchMode('focus');
+          }
+        });
+        return;
+      }
+
+      resetTimer();
+    }
+
     function syncTimerFromWallClock() {
       if (!state.isRunning || !state.timerEndTimestamp) return;
       const remainingMs = state.timerEndTimestamp - Date.now();
@@ -3825,6 +4168,7 @@
     function startTimer() {
       if (state.isRunning) return;
       state.isRunning = true;
+      state.lastTickStartMs = Date.now();
       state.timerEndTimestamp = Date.now() + (state.timeLeftSeconds * 1000);
       requestWakeLockAndKeepAlive();
       updateClockUI();
@@ -3834,8 +4178,14 @@
     }
 
     function pauseTimer() {
-      if (state.isRunning && state.timerEndTimestamp) {
-        state.timeLeftSeconds = Math.max(0, Math.ceil((state.timerEndTimestamp - Date.now()) / 1000));
+      if (state.isRunning) {
+        if (state.lastTickStartMs) {
+          state.sessionElapsedMs = (state.sessionElapsedMs || 0) + Math.max(0, Date.now() - state.lastTickStartMs);
+          state.lastTickStartMs = null;
+        }
+        if (state.timerEndTimestamp) {
+          state.timeLeftSeconds = Math.max(0, Math.ceil((state.timerEndTimestamp - Date.now()) / 1000));
+        }
       }
       state.isRunning = false;
       state.timerEndTimestamp = null;
@@ -3852,6 +4202,8 @@
       state.totalSecondsForSession = mins * 60;
       state.timeLeftSeconds = mins * 60;
       state.timerEndTimestamp = null;
+      state.sessionElapsedMs = 0;
+      state.lastTickStartMs = null;
       updateClockUI();
     }
 
@@ -3860,20 +4212,52 @@
       pauseTimer();
       playSessionCompletionRingtone(completedMode);
 
-      // Requirement #4: ONLY when a Focus countdown finishes does it record +1 in 「专注次数」
-      // and add the completed focus countdown duration to 「专注时长」!
-      if (completedMode === 'focus') {
-        state.completedFocusSessions += 1;
-        state.completedFocusMinutes += state.durations.focus;
-        saveDailyDataToStorage();
-        renderTasksAndOverview('sessionComplete');
-      }
-
       const mins = state.durations[state.mode];
       state.totalSecondsForSession = mins * 60;
       state.timeLeftSeconds = mins * 60;
       state.timerEndTimestamp = null;
+      state.sessionElapsedMs = 0;
+      state.lastTickStartMs = null;
       updateClockUI();
+
+      // Requirement #4 & #5:
+      // - When a Focus countdown finishes, record +1 in 「专注次数」 and add duration to 「专注时长」.
+      // - Also update the rest-reminder cycle counters (4 rounds of 25-min standard Pomodoro OR >= 100 mins accumulated focus).
+      if (completedMode === 'focus') {
+        const sessionFocusMins = state.durations.focus;
+        state.completedFocusSessions += 1;
+        state.completedFocusMinutes += sessionFocusMins;
+
+        if (sessionFocusMins === 25) {
+          state.restCycleStandardSessions = (state.restCycleStandardSessions || 0) + 1;
+        } else {
+          state.restCycleStandardSessions = (state.restCycleStandardSessions || 0) + 1;
+        }
+        state.restCycleFocusMinutes = (state.restCycleFocusMinutes || 0) + sessionFocusMins;
+
+        saveDailyDataToStorage();
+        renderTasksAndOverview('sessionComplete');
+
+        // Requirement #5: Check if user completed 4 rounds of standard Pomodoro (25 min) OR accumulated >= 100 minutes
+        if (state.restCycleStandardSessions >= 4 || state.restCycleFocusMinutes >= 100) {
+          openReminderModal({
+            title: '辛苦了！',
+            desc: '劳逸结合，该歇一歇了。',
+            iconType: 'celebrate',
+            pauseWhileOpen: false,
+            onConfirm: () => {
+              switchMode('longBreak');
+              startTimer();
+            },
+            onCancel: () => {
+              resetRestReminderCycle();
+            }
+          });
+        }
+      } else if (completedMode === 'longBreak') {
+        // Requirement #5: When Long Break countdown naturally finishes, reset the rest reminder mechanism to 0
+        resetRestReminderCycle();
+      }
     }
 
     // =========================================================================
@@ -3964,6 +4348,8 @@
       if (changedType === 'sessionComplete') {
         pulseElementSpring(overviewCardSessions, 0.07, 0.07);
         pulseElementSpring(overviewCardMinutes, 0.07, 0.07);
+      } else if (changedType === 'minutesOnly') {
+        pulseElementSpring(overviewCardMinutes, 0.07, 0.07);
       } else if (changedType === 'complete' || changedType === 'delete') {
         pulseElementSpring(overviewCardTasks, 0.07, 0.07);
       } else if (changedType === 'all') {
@@ -3987,6 +4373,7 @@
     // =========================================================================
     registerSpringElement(customDurationDialog, { radii: [32, 32, 32, 32], autoBind: false });
     registerSpringElement(addTaskDialog, { radii: [32, 32, 32, 32], autoBind: false });
+    registerSpringElement(reminderConfirmDialog, { radii: [32, 32, 32, 32], autoBind: false });
 
     function lockBodyScroll() {
       document.body.classList.add('modal-open');
@@ -4061,9 +4448,9 @@
     // =========================================================================
     // 12. EVENT LISTENERS & INITIALIZATION
     // =========================================================================
-    modeFocusBtn.addEventListener('click', () => switchMode('focus'));
-    modeShortBtn.addEventListener('click', () => switchMode('shortBreak'));
-    modeLongBtn.addEventListener('click', () => switchMode('longBreak'));
+    modeFocusBtn.addEventListener('click', () => requestModeSwitch('focus'));
+    modeShortBtn.addEventListener('click', () => requestModeSwitch('shortBreak'));
+    modeLongBtn.addEventListener('click', () => requestModeSwitch('longBreak'));
 
     startBtn.addEventListener('click', () => {
       if (state.isRunning) {
@@ -4073,7 +4460,17 @@
       }
     });
 
-    resetBtn.addEventListener('click', resetTimer);
+    resetBtn.addEventListener('click', requestTimerReset);
+
+    closeReminderModalBtn.addEventListener('click', () => hideReminderModal({ resumeIfCanceled: true }));
+    cancelReminderBtn.addEventListener('click', () => hideReminderModal({ resumeIfCanceled: true }));
+    confirmReminderBtn.addEventListener('click', () => {
+      const confirmCb = activeReminderConfirmCallback;
+      hideReminderModal({ resumeIfCanceled: false });
+      if (typeof confirmCb === 'function') {
+        confirmCb();
+      }
+    });
 
     pencilEditDurationBtn.addEventListener('click', openCustomDurationModal);
     closeDurationModal.addEventListener('click', hideCustomDurationModal);
@@ -4139,11 +4536,15 @@
       }
     });
 
-    [customDurationModal, addTaskModal].forEach(modal => {
+    [customDurationModal, addTaskModal, reminderConfirmModal].forEach(modal => {
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
-          hideCustomDurationModal();
-          hideAddTaskModal();
+          if (modal === reminderConfirmModal) {
+            hideReminderModal({ resumeIfCanceled: true });
+          } else {
+            hideCustomDurationModal();
+            hideAddTaskModal();
+          }
         }
       });
       modal.addEventListener('wheel', (e) => {
