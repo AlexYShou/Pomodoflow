@@ -1457,56 +1457,238 @@
       requestAnimationFrame(animateThemeSwitch);
     }
 
-    // Save current day's tasks & actual completed focus stats to localStorage (#4)
-    function saveDailyDataToStorage() {
+    // =========================================================================
+    // IP-BASED CROSS-BROWSER DAILY STORAGE ENGINE (#4):
+    //   Keyed by (User's Public IP Address + Today's Date YYYY-MM-DD).
+    //   Syncs tasks & focus overview across different browsers (Chrome, Safari,
+    //   Edge, Firefox) on the same IP within the same day, and automatically
+    //   resets at 00:00 midnight!
+    // =========================================================================
+    let cachedClientIPHash = localStorage.getItem('pomodoflow_cached_ip_hash') || null;
+    let lastAppliedCloudTimestamp = 0;
+    let ipResolutionPromise = null;
+
+    function sanitizeIPToHash(ipStr) {
+      const clean = String(ipStr || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      if (!clean) return null;
+      // FNV-1a 32-bit deterministic hash + readable prefix so topic key is compact & collision-free
+      let h = 0x811c9dc5;
+      for (let i = 0; i < clean.length; i++) {
+        h ^= clean.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      return 'ip_' + clean.slice(0, 16) + '_' + h.toString(16);
+    }
+
+    async function resolveClientPublicIPHash() {
+      if (cachedClientIPHash) return cachedClientIPHash;
+      if (ipResolutionPromise) return ipResolutionPromise;
+
+      const ipFetchers = [
+        fetch('https://api.ipify.org?format=json', { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
+        fetch('https://api64.ipify.org?format=json', { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
+        fetch('https://ipinfo.io/json', { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
+        fetch('https://ipapi.co/json/', { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
+        fetch('https://www.cloudflare.com/cdn-cgi/trace', { cache: 'no-store' })
+          .then(r => r.ok ? r.text() : Promise.reject())
+          .then(txt => {
+            const m = /ip=([^\s]+)/.exec(txt);
+            return m && m[1] ? sanitizeIPToHash(m[1]) : Promise.reject();
+          })
+      ];
+
+      ipResolutionPromise = Promise.any(ipFetchers)
+        .then(hash => {
+          if (hash) {
+            cachedClientIPHash = hash;
+            try { localStorage.setItem('pomodoflow_cached_ip_hash', hash); } catch (e) {}
+          }
+          return cachedClientIPHash;
+        })
+        .catch(() => cachedClientIPHash)
+        .finally(() => { ipResolutionPromise = null; });
+
+      return ipResolutionPromise;
+    }
+
+    function getIPDailyCloudTopicKey() {
+      const todayKey = getTodayDateString().replace(/[^0-9]/g, '');
+      const ipPart = cachedClientIPHash || 'default_lan';
+      return `pf_daily_${ipPart}_${todayKey}`;
+    }
+
+    function buildDailyPayload() {
+      const nowTs = Date.now();
+      lastAppliedCloudTimestamp = Math.max(lastAppliedCloudTimestamp + 1, nowTs);
+      return {
+        dateKey: state.currentDateKey,
+        updatedAt: lastAppliedCloudTimestamp,
+        tasks: state.tasks,
+        completedFocusSessions: state.completedFocusSessions,
+        completedFocusMinutes: state.completedFocusMinutes,
+        focusDuration: state.durations.focus,
+        darkMode: themeSwitchState.checked
+      };
+    }
+
+    function applyDailyPayloadToState(parsed, fromCloud = false) {
+      const todayKey = getTodayDateString();
+      if (!parsed || parsed.dateKey !== todayKey) return false;
+      const incomingTs = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 1;
+      if (fromCloud && incomingTs < lastAppliedCloudTimestamp) {
+        return false;
+      }
+      lastAppliedCloudTimestamp = Math.max(lastAppliedCloudTimestamp, incomingTs);
+
+      if (Array.isArray(parsed.tasks)) {
+        state.tasks = parsed.tasks;
+      }
+      if (typeof parsed.completedFocusSessions === 'number' && parsed.completedFocusSessions >= 0) {
+        state.completedFocusSessions = parsed.completedFocusSessions;
+      }
+      if (typeof parsed.completedFocusMinutes === 'number' && parsed.completedFocusMinutes >= 0) {
+        state.completedFocusMinutes = parsed.completedFocusMinutes;
+      }
+      if (!state.isRunning && typeof parsed.focusDuration === 'number' && parsed.focusDuration >= 1 && parsed.focusDuration <= 180) {
+        state.durations.focus = parsed.focusDuration;
+        if (state.mode === 'focus') {
+          state.totalSecondsForSession = parsed.focusDuration * 60;
+          state.timeLeftSeconds = parsed.focusDuration * 60;
+        }
+      }
+      if (typeof parsed.darkMode === 'boolean' && !themeSwitchState.isPressed) {
+        themeSwitchState.checked = parsed.darkMode;
+        themeSwitchState.x.pos = parsed.darkMode ? SWITCH_GEOM.maxX : SWITCH_GEOM.minX;
+        themeSwitchState.x.target = themeSwitchState.x.pos;
+        updateThemeSwitchTargets();
+      }
       try {
-        const payload = {
+        localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(parsed));
+      } catch (e) {}
+      renderTasksAndOverview();
+      updateClockUI();
+      return true;
+    }
+
+    async function pushDailyDataToIPCloud(payload) {
+      const ipHash = await resolveClientPublicIPHash();
+      if (!ipHash) return;
+      const topicKey = getIPDailyCloudTopicKey();
+      const jsonStr = JSON.stringify(payload);
+      const b64Str = btoa(unescape(encodeURIComponent(jsonStr)));
+
+      // Redundant Dual-Cloud Push keyed by User Public IP + Today's Date:
+      // 1. ntfy.sh CORS-simple pub/sub cache (stores today's JSON payloads across all browsers on this IP)
+      fetch(`https://ntfy.sh/${topicKey}`, {
+        method: 'POST',
+        body: jsonStr,
+        keepalive: true
+      }).catch(() => {});
+
+      // 2. keyvalue.immanuel.co REST KV store
+      fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/pomodoflow99/${topicKey}/${encodeURIComponent(b64Str)}`, {
+        method: 'POST',
+        keepalive: true
+      }).catch(() => {});
+    }
+
+    async function pullDailyDataFromIPCloud() {
+      const todayKey = getTodayDateString();
+      if (state.currentDateKey !== todayKey) return;
+      const ipHash = await resolveClientPublicIPHash();
+      if (!ipHash) return;
+      const topicKey = getIPDailyCloudTopicKey();
+
+      // Query both cloud stores in parallel and apply whichever has the newest updatedAt timestamp for today
+      const results = await Promise.allSettled([
+        fetch(`https://ntfy.sh/${topicKey}/raw?poll=1&since=24h`, { cache: 'no-store' })
+          .then(r => r.ok ? r.text() : '')
+          .then(text => {
+            const lines = String(text || '').trim().split('\n').filter(Boolean);
+            let newest = null;
+            for (const line of lines) {
+              try {
+                const obj = JSON.parse(line);
+                if (obj && obj.dateKey === todayKey) {
+                  if (!newest || (obj.updatedAt || 0) >= (newest.updatedAt || 0)) {
+                    newest = obj;
+                  }
+                }
+              } catch (e) {}
+            }
+            return newest;
+          }),
+        fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/pomodoflow99/${topicKey}`, { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : '')
+          .then(val => {
+            if (!val || typeof val !== 'string') return null;
+            const decoded = decodeURIComponent(escape(atob(val)));
+            const obj = JSON.parse(decoded);
+            return (obj && obj.dateKey === todayKey) ? obj : null;
+          })
+      ]);
+
+      let bestCloudPayload = null;
+      for (const res of results) {
+        if (res.status === 'fulfilled' && res.value) {
+          if (!bestCloudPayload || (res.value.updatedAt || 0) > (bestCloudPayload.updatedAt || 0)) {
+            bestCloudPayload = res.value;
+          }
+        }
+      }
+
+      if (bestCloudPayload) {
+        applyDailyPayloadToState(bestCloudPayload, true);
+      } else if (state.tasks.length > 0 || state.completedFocusSessions > 0) {
+        // If this browser already has today's data locally and cloud was empty, seed the IP cloud store
+        pushDailyDataToIPCloud({
           dateKey: state.currentDateKey,
+          updatedAt: lastAppliedCloudTimestamp || Date.now(),
           tasks: state.tasks,
           completedFocusSessions: state.completedFocusSessions,
           completedFocusMinutes: state.completedFocusMinutes,
           focusDuration: state.durations.focus,
           darkMode: themeSwitchState.checked
-        };
-        localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(payload));
-      } catch (e) {}
+        });
+      }
     }
 
-    // Load today's tasks & stats from localStorage; auto-resets at 00:00 (#4)
+    function saveDailyDataToStorage() {
+      const payload = buildDailyPayload();
+      try {
+        localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(payload));
+      } catch (e) {}
+      pushDailyDataToIPCloud(payload);
+    }
+
     function loadDailyDataFromStorage() {
       const todayKey = getTodayDateString();
       state.currentDateKey = todayKey;
       try {
         const raw = localStorage.getItem(DAILY_STORAGE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.dateKey === todayKey) {
-          if (Array.isArray(parsed.tasks)) {
-            state.tasks = parsed.tasks;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.dateKey === todayKey) {
+            applyDailyPayloadToState(parsed, false);
+          } else {
+            state.tasks = [];
+            state.completedFocusSessions = 0;
+            state.completedFocusMinutes = 0;
+            lastAppliedCloudTimestamp = Date.now();
+            localStorage.removeItem(DAILY_STORAGE_KEY);
           }
-          if (typeof parsed.completedFocusSessions === 'number' && parsed.completedFocusSessions >= 0) {
-            state.completedFocusSessions = parsed.completedFocusSessions;
-          }
-          if (typeof parsed.completedFocusMinutes === 'number' && parsed.completedFocusMinutes >= 0) {
-            state.completedFocusMinutes = parsed.completedFocusMinutes;
-          }
-          if (typeof parsed.focusDuration === 'number' && parsed.focusDuration >= 1 && parsed.focusDuration <= 180) {
-            state.durations.focus = parsed.focusDuration;
-            state.totalSecondsForSession = parsed.focusDuration * 60;
-            state.timeLeftSeconds = parsed.focusDuration * 60;
-          }
-          if (typeof parsed.darkMode === 'boolean') {
-            themeSwitchState.checked = parsed.darkMode;
-            themeSwitchState.x.pos = parsed.darkMode ? SWITCH_GEOM.maxX : SWITCH_GEOM.minX;
-            themeSwitchState.x.target = themeSwitchState.x.pos;
-          }
-        } else {
-          state.tasks = [];
-          state.completedFocusSessions = 0;
-          state.completedFocusMinutes = 0;
-          saveDailyDataToStorage();
         }
       } catch (e) {}
+      // Immediately pull today's IP-bound data from cloud so opening in another browser restores today's tasks & overview
+      pullDailyDataFromIPCloud();
     }
 
     // Live Midnight (00:00) Watcher: automatically clears tasks if 00:00 is reached while app is open
@@ -2067,6 +2249,7 @@
       const rate = track.rate || 0.95;
       deck.dataset.trackGain = String(track.gain || 0.80);
       deck.dataset.trackRate = String(rate);
+      deck.dataset.trackDuration = String(track.durationSec || 0);
       try {
         deck.preservesPitch = false;
         deck.playbackRate = rate;
@@ -2164,7 +2347,7 @@
       return `${cleaned} · ${mood}`;
     }
 
-    function registerDiscoveredTrack(rawTitle, url, creator = '') {
+    function registerDiscoveredTrack(rawTitle, url, creator = '', durationSec = 0) {
       if (!url || typeof url !== 'string' || !url.startsWith('https://')) return false;
       if (state.discoveredTrackUrls.has(url)) return false;
       if (NOISY_EXCLUDE_REGEX.test(rawTitle) || NOISY_EXCLUDE_REGEX.test(url)) return false;
@@ -2174,7 +2357,8 @@
         title: cleanTrackDisplayTitle(rawTitle, creator),
         url,
         gain: 0.78,
-        rate: 0.95
+        rate: 0.95,
+        durationSec: (durationSec && isFinite(durationSec) && durationSec > 5) ? durationSec : 0
       };
 
       state.onlineTracks.push(newTrack);
@@ -2219,7 +2403,7 @@
 
           const trackTitle = f.title || fname.replace(/\.(mp3|ogg)$/i, '');
           const streamUrl = `https://archive.org/download/${encodeURIComponent(identifier)}/${encodeURIComponent(fname).replace(/%2F/g, '/')}`;
-          if (registerDiscoveredTrack(trackTitle, streamUrl, creator)) {
+          if (registerDiscoveredTrack(trackTitle, streamUrl, creator, lengthSec)) {
             added++;
           }
         }
@@ -2322,7 +2506,7 @@
           if (/\.(html|php|htm)$/i.test(streamUrl)) continue;
           const title = item.title || 'Lo-Fi Study';
           const creator = item.creator || '';
-          if (registerDiscoveredTrack(title, streamUrl, creator)) {
+          if (registerDiscoveredTrack(title, streamUrl, creator, durMs > 0 ? durMs / 1000 : 0)) {
             added++;
           }
         }
@@ -2434,6 +2618,126 @@
       return nextIdx !== undefined ? nextIdx : ((state.currentTrackIndex + 1) % len);
     }
 
+    // Pre-bless both audio decks on the first user gesture so background tab track switches
+    // are never blocked by browser autoplay restrictions (#1)
+    let decksUnlockedByGesture = false;
+    function unlockBothAudioDecksOnGesture() {
+      if (decksUnlockedByGesture) return;
+      decksUnlockedByGesture = true;
+      ensureAudioCtx();
+      [deckA, deckB].forEach(d => {
+        if (d.paused && !d.src) {
+          try {
+            d.muted = true;
+            const p = d.play();
+            if (p !== undefined) {
+              p.then(() => { d.pause(); d.muted = false; }).catch(() => { d.muted = false; });
+            } else {
+              d.muted = false;
+            }
+          } catch (e) {
+            d.muted = false;
+          }
+        }
+      });
+    }
+
+    // Background-safe Crossfade & Progress Engine (#1, #3):
+    // Previously, crossfade volume ramping and progress updates lived inside `requestAnimationFrame`.
+    // When the user switched to another tab/app (`document.hidden === true`), the browser paused
+    // `requestAnimationFrame`, leaving the new track stuck at `volume = 0` or failing to start `inactiveDeck`!
+    let crossfadeIntervalId = null;
+
+    function stopCrossfadeLoop() {
+      if (crossfadeIntervalId) {
+        clearInterval(crossfadeIntervalId);
+        crossfadeIntervalId = null;
+      }
+      isCrossfading = false;
+      activeDeckFadeMultiplier = 1.0;
+      inactiveDeckFadeMultiplier = 0.0;
+    }
+
+    function stepBackgroundSafeCrossfade() {
+      if (!isCrossfading || !state.stationPlaying) return;
+      const now = performance.now();
+      const elapsed = now - crossfadeStartPerf;
+      const p = Math.max(0, Math.min(1, elapsed / CROSSFADE_DURATION_MS));
+      activeDeckFadeMultiplier = Math.sin(p * Math.PI * 0.5);
+      inactiveDeckFadeMultiplier = Math.cos(p * Math.PI * 0.5);
+
+      activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, activeDeckFadeMultiplier);
+      if (inactiveDeck !== activeDeck && !inactiveDeck.paused) {
+        inactiveDeck.volume = computeDeckVolume(inactiveDeck, state.masterVolume, inactiveDeckFadeMultiplier);
+      }
+
+      if (p >= 1) {
+        stopCrossfadeLoop();
+        activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, 1.0);
+        if (inactiveDeck !== activeDeck) {
+          try {
+            inactiveDeck.pause();
+            inactiveDeck.currentTime = 0;
+          } catch (e) {}
+        }
+      }
+    }
+
+    // Real Audio Resource Duration & Strict Real-Time Playback Synchronizer:
+    // Never advances the progress bar on a synthetic timer while audio is still loading/buffering!
+    // Progress ONLY moves when the <audio> element has actually loaded data (readyState >= 2)
+    // and its real `activeDeck.currentTime` is advancing.
+    function isStationAudioActuallyOutputting() {
+      if (!state.stationPlaying || !activeDeck) return false;
+      if (activeDeck.paused || activeDeck.ended || activeDeck.seeking) return false;
+      // readyState >= 2 (HAVE_CURRENT_DATA) and currentTime > 0 means real audio frames are playing
+      return activeDeck.readyState >= 2 && activeDeck.currentTime > 0;
+    }
+
+    function getEffectiveTrackDuration(deck) {
+      if (!deck) return 0;
+      // 1. Prefer the exact duration decoded by the browser from the audio stream
+      const rawDur = deck.duration;
+      if (rawDur && isFinite(rawDur) && rawDur > 1 && rawDur < 7200) {
+        return rawDur;
+      }
+      // 2. If the stream is chunked (duration === Infinity), use the track's known metadata duration
+      const metaDur = parseFloat(deck.dataset && deck.dataset.trackDuration) || 0;
+      if (metaDur > 1) {
+        return Math.max(metaDur, (deck.currentTime || 0) + 1);
+      }
+      // 3. Only if audio is ALREADY actively playing (currentTime > 0) and stream has no Content-Length,
+      //    use buffered range end
+      if (deck.readyState >= 2 && deck.currentTime > 0) {
+        try {
+          if (deck.buffered && deck.buffered.length > 0) {
+            const bufEnd = deck.buffered.end(deck.buffered.length - 1);
+            if (bufEnd > deck.currentTime) return bufEnd;
+          }
+        } catch (e) {}
+      }
+      return 0;
+    }
+
+    function syncStationProgressFromActiveDeck() {
+      if (isSeekingWavy || performance.now() <= seekLockUntil) return;
+      if (!state.stationPlaying || !activeDeck) return;
+
+      // If the track is still loading/buffering (readyState < 2 or currentTime === 0),
+      // do NOT advance progress on its own — keep it locked at the initial position (0 or pendingSeekRatio)!
+      if (!isStationAudioActuallyOutputting()) {
+        if (activeDeck.currentTime === 0 && pendingSeekRatio === null) {
+          state.stationProgress = 0;
+        }
+        return;
+      }
+
+      const realDur = getEffectiveTrackDuration(activeDeck);
+      if (realDur > 0) {
+        state.stationProgress = Math.max(0, Math.min(1, activeDeck.currentTime / realDur));
+      }
+    }
+
     async function transitionToTrack(nextIndex, initialSeekRatio = null) {
       if (state.onlineTracks.length === 0) {
         stationTrackTitle.textContent = '正在实时检索网络纯音乐...';
@@ -2455,68 +2759,109 @@
       state.stationPlaying = true;
       syncMusicUIState();
 
+      const isBackgroundTab = document.hidden || document.visibilityState === 'hidden';
       const outgoingDeck = activeDeck;
-      const incomingDeck = inactiveDeck;
       const wasOutgoingPlaying = !outgoingDeck.paused && outgoingDeck.currentTime > 0;
 
-      activeDeck = incomingDeck;
-      inactiveDeck = outgoingDeck;
-
-      incomingDeck.src = track.url;
-      applyTrackTuningToDeck(incomingDeck, track);
-      incomingDeck.volume = 0;
-      incomingDeck.load();
-
-      const applyStartSeekAndPlay = () => {
-        applyTrackTuningToDeck(incomingDeck, track);
-        if (pendingSeekRatio !== null && incomingDeck.duration && isFinite(incomingDeck.duration)) {
-          try {
-            incomingDeck.currentTime = pendingSeekRatio * incomingDeck.duration;
-            pendingSeekRatio = null;
-            seekLockUntil = performance.now() + 500;
-          } catch (e) {}
+      // CRITICAL FIX (#1): When the user is in a background tab (`isBackgroundTab`),
+      // reuse the currently active, browser-blessed `activeDeck` element directly at full target volume
+      // and call `.play()` synchronously right after setting `.src`!
+      // Browsers allow an already-playing `<audio>` element to load and play a new `src` in the background,
+      // whereas swapping to a second paused `<audio>` element at `volume = 0` gets blocked or muted!
+      if (isBackgroundTab || !wasOutgoingPlaying) {
+        stopCrossfadeLoop();
+        if (inactiveDeck !== activeDeck) {
+          try { inactiveDeck.pause(); } catch (e) {}
         }
-        const p = incomingDeck.play();
-        if (p !== undefined) {
-          p.catch(() => {
-            if (state.stationPlaying && activeDeck === incomingDeck) {
-              setTimeout(() => {
-                if (state.stationPlaying && activeDeck === incomingDeck && incomingDeck.paused) {
-                  transitionToTrack(pickRandomNextTrackIndex());
-                }
-              }, 400);
+        const targetDeck = activeDeck;
+        targetDeck.muted = false;
+        targetDeck.src = track.url;
+        applyTrackTuningToDeck(targetDeck, track);
+        activeDeckFadeMultiplier = 1.0;
+        targetDeck.volume = computeDeckVolume(targetDeck, state.masterVolume, 1.0);
+
+        if (pendingSeekRatio !== null) {
+          targetDeck.addEventListener('loadedmetadata', function onSeekMeta() {
+            targetDeck.removeEventListener('loadedmetadata', onSeekMeta);
+            applyTrackTuningToDeck(targetDeck, track);
+            const effDur = getEffectiveTrackDuration(targetDeck);
+            if (pendingSeekRatio !== null && effDur > 1) {
+              try {
+                targetDeck.currentTime = pendingSeekRatio * effDur;
+                pendingSeekRatio = null;
+                seekLockUntil = performance.now() + 500;
+              } catch (e) {}
             }
           });
         }
-      };
 
-      if (incomingDeck.readyState >= 1) {
-        applyStartSeekAndPlay();
-      } else {
+        // Synchronous .play() immediately after .src assignment so background tab playback never drops
+        const playPromise = targetDeck.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            if (state.stationPlaying && activeDeck === targetDeck) {
+              setTimeout(() => {
+                if (state.stationPlaying && activeDeck === targetDeck && targetDeck.paused) {
+                  transitionToTrack(pickRandomNextTrackIndex());
+                }
+              }, 450);
+            }
+          });
+        }
+        return;
+      }
+
+      // Foreground tab with outgoing track playing: smooth dual-deck crossfade driven by background-safe setInterval
+      const incomingDeck = inactiveDeck;
+      activeDeck = incomingDeck;
+      inactiveDeck = outgoingDeck;
+
+      incomingDeck.muted = false;
+      incomingDeck.src = track.url;
+      applyTrackTuningToDeck(incomingDeck, track);
+      incomingDeck.volume = computeDeckVolume(incomingDeck, state.masterVolume, 0.05);
+
+      if (pendingSeekRatio !== null) {
         incomingDeck.addEventListener('loadedmetadata', function onMeta() {
           incomingDeck.removeEventListener('loadedmetadata', onMeta);
-          applyStartSeekAndPlay();
+          applyTrackTuningToDeck(incomingDeck, track);
+          const effDur = getEffectiveTrackDuration(incomingDeck);
+          if (pendingSeekRatio !== null && effDur > 1) {
+            try {
+              incomingDeck.currentTime = pendingSeekRatio * effDur;
+              pendingSeekRatio = null;
+              seekLockUntil = performance.now() + 500;
+            } catch (e) {}
+          }
         });
       }
 
-      if (wasOutgoingPlaying) {
-        isCrossfading = true;
-        crossfadeStartPerf = performance.now();
-        activeDeckFadeMultiplier = 0.0;
-        inactiveDeckFadeMultiplier = 1.0;
-      } else {
-        isCrossfading = true;
-        crossfadeStartPerf = performance.now() - (CROSSFADE_DURATION_MS * 0.55);
-        activeDeckFadeMultiplier = 0.0;
-        inactiveDeckFadeMultiplier = 0.0;
-        try { outgoingDeck.pause(); } catch (e) {}
+      const p = incomingDeck.play();
+      if (p !== undefined) {
+        p.catch(() => {
+          if (state.stationPlaying && activeDeck === incomingDeck) {
+            setTimeout(() => {
+              if (state.stationPlaying && activeDeck === incomingDeck && incomingDeck.paused) {
+                transitionToTrack(pickRandomNextTrackIndex());
+              }
+            }, 450);
+          }
+        });
       }
+
+      stopCrossfadeLoop();
+      isCrossfading = true;
+      crossfadeStartPerf = performance.now();
+      activeDeckFadeMultiplier = 0.05;
+      inactiveDeckFadeMultiplier = 1.0;
+      crossfadeIntervalId = setInterval(stepBackgroundSafeCrossfade, 50);
     }
 
     async function toggleStationPlayPause() {
+      unlockBothAudioDecksOnGesture();
       if (state.stationPlaying) {
         state.stationPlaying = false;
-        isCrossfading = false;
+        stopCrossfadeLoop();
         activeDeck.pause();
         inactiveDeck.pause();
         syncMusicUIState();
@@ -2534,15 +2879,17 @@
             state.playedTrackUrls.add(currentTrack.url);
           }
           syncMusicUIState();
-          isCrossfading = false;
-          activeDeckFadeMultiplier = 1.0;
+          stopCrossfadeLoop();
           applyTrackTuningToDeck(activeDeck, currentTrack);
           activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, 1.0);
-          if (pendingSeekRatio !== null && activeDeck.duration && isFinite(activeDeck.duration)) {
-            try {
-              activeDeck.currentTime = pendingSeekRatio * activeDeck.duration;
-              pendingSeekRatio = null;
-            } catch (e) {}
+          if (pendingSeekRatio !== null) {
+            const effDur = getEffectiveTrackDuration(activeDeck);
+            if (effDur > 1) {
+              try {
+                activeDeck.currentTime = pendingSeekRatio * effDur;
+                pendingSeekRatio = null;
+              } catch (e) {}
+            }
           }
           activeDeck.play().catch(() => {
             transitionToTrack(pickRandomNextTrackIndex());
@@ -2552,9 +2899,30 @@
     }
 
     [deckA, deckB].forEach(deck => {
+      deck.addEventListener('playing', () => {
+        if (deck === activeDeck && state.stationPlaying) {
+          syncStationProgressFromActiveDeck();
+        }
+      });
+      deck.addEventListener('loadedmetadata', () => {
+        if (deck === activeDeck && state.stationPlaying) {
+          syncStationProgressFromActiveDeck();
+        }
+      });
+      deck.addEventListener('durationchange', () => {
+        if (deck === activeDeck && state.stationPlaying) {
+          syncStationProgressFromActiveDeck();
+        }
+      });
+      deck.addEventListener('timeupdate', () => {
+        if (deck === activeDeck && state.stationPlaying) {
+          syncStationProgressFromActiveDeck();
+        }
+      });
       deck.addEventListener('ended', () => {
         if (isSeekingWavy) return;
-        if (deck === activeDeck && state.stationPlaying && !isCrossfading) {
+        if (deck === activeDeck && state.stationPlaying) {
+          stopCrossfadeLoop();
           state.stationProgress = 1;
           transitionToTrack(pickRandomNextTrackIndex());
         }
@@ -2653,22 +3021,84 @@
       }
     };
 
-    // Preload Google Sound Library audio files into the built-in browser cache on startup
+    // Preload & Pre-Decode Google Sound Library files in the background during idle frames (#2):
+    // Eliminates synchronous 18x `new Audio()` creation and `decodeAudioData()` main-thread spikes
+    // when clicking ambient buttons, so the Station wavy progress bar NEVER stutters!
     const preloadedGoogleSounds = new Map();
+    const decodedAmbientBufferCache = new Map();
+    const pendingAmbientDecodePromises = new Map();
+
+    const PREAMP_BOOST_MAP = {
+      rain: [
+        { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', boost: 1.35, offset: 0.0 },
+        { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', boost: 1.05, offset: 4.5 },
+        { url: 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg', boost: 0.25, offset: 1.8 }
+      ],
+      fireplace: [
+        { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', boost: 8.5, offset: 0.0 },
+        { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', boost: 7.5, offset: 3.5 },
+        { url: 'https://actions.google.com/sounds/v1/household/wind_drawn_into_fire.ogg', boost: 4.5, offset: 1.2 }
+      ],
+      waves: [
+        { url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg', boost: 2.6, offset: 0.0 },
+        { url: 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg', boost: 4.2, offset: 1.5 }
+      ],
+      forest: [
+        { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', boost: 7.5, offset: 0.0 },
+        { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', boost: 4.5, offset: 1.2 },
+        { url: 'https://actions.google.com/sounds/v1/weather/wind_in_leaves_on_porch.ogg', boost: 5.5, offset: 2.4 },
+        { url: 'https://actions.google.com/sounds/v1/ambiences/spring_day_forest.ogg', boost: 9.5, offset: 0.5 }
+      ]
+    };
+
+    function fetchAndDecodeAmbientUrl(url) {
+      if (decodedAmbientBufferCache.has(url)) {
+        return Promise.resolve(decodedAmbientBufferCache.get(url));
+      }
+      if (pendingAmbientDecodePromises.has(url)) {
+        return pendingAmbientDecodePromises.get(url);
+      }
+      const p = fetch(url)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+        .then(buf => {
+          ensureAudioCtx();
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          const ctxToUse = audioCtx || (AudioContextClass ? new AudioContextClass() : null);
+          if (!ctxToUse) return null;
+          return ctxToUse.decodeAudioData(buf);
+        })
+        .then(decoded => {
+          if (decoded) decodedAmbientBufferCache.set(url, decoded);
+          return decoded;
+        })
+        .catch(() => null)
+        .finally(() => {
+          pendingAmbientDecodePromises.delete(url);
+        });
+      pendingAmbientDecodePromises.set(url, p);
+      return p;
+    }
+
     function preloadGoogleSoundLibrary() {
+      const uniqueUrls = new Set();
       Object.values(BUILTIN_GOOGLE_AMBIENT_LIBRARY).forEach(group => {
-        group.voices.forEach(v => {
-          if (!preloadedGoogleSounds.has(v.url)) {
+        group.voices.forEach(v => uniqueUrls.add(v.url));
+      });
+      let delayMs = 80;
+      uniqueUrls.forEach(url => {
+        setTimeout(() => {
+          if (!preloadedGoogleSounds.has(url)) {
             const a = new Audio();
             a.preload = 'auto';
-            a.src = v.url;
-            a.load();
-            preloadedGoogleSounds.set(v.url, a);
+            a.src = url;
+            preloadedGoogleSounds.set(url, a);
           }
-        });
+          fetchAndDecodeAmbientUrl(url);
+        }, delayMs);
+        delayMs += 180;
       });
     }
-    setTimeout(preloadGoogleSoundLibrary, 150);
+    setTimeout(preloadGoogleSoundLibrary, 250);
 
     const ambientPlayers = {};
 
@@ -2680,91 +3110,85 @@
       let stopped = false;
       const activeElements = [];
       const webAudioNodes = [];
+      const staggerTimers = [];
 
-      // Hardware Web Audio API GainNode Pre-Amp Booster across all 4 ambient sounds ('rain', 'fireplace', 'waves', 'forest')
-      // Ensures 'rain' and 'fireplace' are boosted to match the exact same rich, full loudness as 'waves' and 'forest' (#1)
-      const PREAMP_BOOST_MAP = {
-        rain: [
-          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', boost: 1.35, offset: 0.0 },
-          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', boost: 1.05, offset: 4.5 },
-          { url: 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg', boost: 0.25, offset: 1.8 }
-        ],
-        fireplace: [
-          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', boost: 8.5, offset: 0.0 },
-          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', boost: 7.5, offset: 3.5 },
-          { url: 'https://actions.google.com/sounds/v1/household/wind_drawn_into_fire.ogg', boost: 4.5, offset: 1.2 }
-        ],
-        waves: [
-          { url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg', boost: 2.6, offset: 0.0 },
-          { url: 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg', boost: 4.2, offset: 1.5 }
-        ],
-        forest: [
-          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', boost: 7.5, offset: 0.0 },
-          { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', boost: 4.5, offset: 1.2 },
-          { url: 'https://actions.google.com/sounds/v1/weather/wind_in_leaves_on_porch.ogg', boost: 5.5, offset: 2.4 },
-          { url: 'https://actions.google.com/sounds/v1/ambiences/spring_day_forest.ogg', boost: 9.5, offset: 0.5 }
-        ]
-      };
+      function attachDecodedVoiceNode(decoded, gainBoost, rate, offsetSec) {
+        if (!decoded || stopped) return;
+        ensureAudioCtx();
+        if (!audioCtx) return;
+        const srcNode = audioCtx.createBufferSource();
+        const gainNode = audioCtx.createGain();
+        srcNode.buffer = decoded;
+        srcNode.loop = true;
+        srcNode.playbackRate.value = rate || 1.0;
+        const startOffset = (offsetSec || 0) % Math.max(0.5, decoded.duration - 0.2);
+        srcNode.loopStart = Math.min(0.15, decoded.duration * 0.05);
+        srcNode.loopEnd = Math.max(srcNode.loopStart + 0.4, decoded.duration - 0.15);
+        gainNode.gain.value = state.masterVolume * gainBoost;
+        srcNode.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        srcNode.start(0, startOffset);
+        webAudioNodes.push({ srcNode, gainNode, boost: gainBoost });
+      }
+
+      // 1. Start Pre-Amp Boosted Web Audio voices (zero-stutter instant buffer playback if cached)
       if (PREAMP_BOOST_MAP[type]) {
-        const boostUrlList = PREAMP_BOOST_MAP[type];
-
-        boostUrlList.forEach(item => {
-          fetch(item.url)
-            .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
-            .then(buf => {
-              ensureAudioCtx();
-              if (!audioCtx || stopped) return null;
-              return audioCtx.decodeAudioData(buf);
-            })
-            .then(decoded => {
-              if (!decoded || stopped || !audioCtx) return;
-              const srcNode = audioCtx.createBufferSource();
-              const gainNode = audioCtx.createGain();
-              srcNode.buffer = decoded;
-              srcNode.loop = true;
-              gainNode.gain.value = state.masterVolume * item.boost;
-              srcNode.connect(gainNode);
-              gainNode.connect(audioCtx.destination);
-              const startOffset = (item.offset || 0) % Math.max(0.5, decoded.duration - 0.2);
-              srcNode.start(0, startOffset);
-              webAudioNodes.push({ srcNode, gainNode, boost: item.boost });
-            })
-            .catch(() => {});
+        PREAMP_BOOST_MAP[type].forEach((item, idx) => {
+          const cached = decodedAmbientBufferCache.get(item.url);
+          if (cached) {
+            attachDecodedVoiceNode(cached, item.boost, 1.0, item.offset || 0);
+          } else {
+            const tid = setTimeout(() => {
+              if (!stopped) {
+                fetchAndDecodeAmbientUrl(item.url).then(dec => {
+                  attachDecodedVoiceNode(dec, item.boost, 1.0, item.offset || 0);
+                });
+              }
+            }, idx * 16);
+            staggerTimers.push(tid);
+          }
         });
       }
 
-      spec.voices.forEach((vCfg) => {
-        const audio = new Audio(vCfg.url);
-        audio.preload = 'auto';
-        audio.loop = true;
-        audio.playbackRate = vCfg.rate || 1.0;
-        audio.preservesPitch = false;
-
-        const voiceObj = {
-          audio,
-          cfg: vCfg,
-          envelope: 1.0
-        };
-        activeElements.push(voiceObj);
-
-        audio.addEventListener('loadedmetadata', () => {
+      // 2. Stagger multi-voice texture layers across micro-frames (16ms apart) using Web Audio BufferSource
+      //    when decoded (0 DOM overhead!), falling back to lightweight <audio> only if needed (#2)
+      spec.voices.forEach((vCfg, idx) => {
+        const tid = setTimeout(() => {
           if (stopped) return;
-          const dur = audio.duration;
-          if (dur && isFinite(dur) && dur > 1) {
-            const maxEnd = vCfg.activeEnd ? Math.min(dur - 0.1, vCfg.activeEnd) : (dur - 0.2);
-            const targetStart = (vCfg.startOffset || 0) % Math.max(0.5, maxEnd);
-            try {
-              audio.currentTime = Math.max(vCfg.activeStart || 0, targetStart);
-            } catch (e) {}
-            if (!stopped && audio.paused) {
-              audio.play().catch(() => {});
-            }
+          const cachedBuf = decodedAmbientBufferCache.get(vCfg.url);
+          if (cachedBuf) {
+            attachDecodedVoiceNode(cachedBuf, vCfg.gain, vCfg.rate || 1.0, vCfg.startOffset || 0);
+            return;
           }
-        }, { once: true });
+          // Lightweight fallback <audio> while buffer finishes downloading
+          const audio = new Audio(vCfg.url);
+          audio.preload = 'auto';
+          audio.loop = true;
+          audio.playbackRate = vCfg.rate || 1.0;
+          audio.preservesPitch = false;
 
-        const targetVol = Math.min(1, Math.max(0, state.masterVolume * vCfg.gain));
-        audio.volume = targetVol;
-        audio.play().catch(() => {});
+          const voiceObj = { audio, cfg: vCfg, envelope: 1.0 };
+          activeElements.push(voiceObj);
+
+          audio.addEventListener('loadedmetadata', () => {
+            if (stopped) return;
+            const dur = audio.duration;
+            if (dur && isFinite(dur) && dur > 1) {
+              const maxEnd = vCfg.activeEnd ? Math.min(dur - 0.1, vCfg.activeEnd) : (dur - 0.2);
+              const targetStart = (vCfg.startOffset || 0) % Math.max(0.5, maxEnd);
+              try {
+                audio.currentTime = Math.max(vCfg.activeStart || 0, targetStart);
+              } catch (e) {}
+              if (!stopped && audio.paused) {
+                audio.play().catch(() => {});
+              }
+            }
+          }, { once: true });
+
+          audio.volume = Math.min(1, Math.max(0, state.masterVolume * vCfg.gain));
+          audio.play().catch(() => {});
+        }, idx * 14);
+        staggerTimers.push(tid);
       });
 
       // Seamless Active-Window & Boundary Crossfade Loop Monitor (runs every 60ms)
@@ -2823,6 +3247,7 @@
         },
         stop() {
           stopped = true;
+          staggerTimers.forEach(t => clearTimeout(t));
           clearInterval(loopWatchTimer);
           activeElements.forEach(v => {
             try {
@@ -2914,10 +3339,15 @@
     // =========================================================================
     const wavyCtx = wavyProgressCanvas.getContext('2d');
     let isSeekingWavy = false;
+    let cachedWavyWidth = 0;
+    let cachedWavyHeight = 0;
+    let lastWavyFramePerf = performance.now();
 
     function resizeWavyCanvas() {
       const rect = wavyProgressContainer.getBoundingClientRect();
       if (rect.width === 0) return;
+      cachedWavyWidth = rect.width;
+      cachedWavyHeight = rect.height;
       const dpr = window.devicePixelRatio || 1;
       wavyProgressCanvas.width = Math.round(rect.width * dpr);
       wavyProgressCanvas.height = Math.round(rect.height * dpr);
@@ -2925,55 +3355,31 @@
     }
     window.addEventListener('resize', resizeWavyCanvas);
 
-    function animateWavyProgress(now) {
-      // 1. Handle 60fps Equal-Power Dual-Deck Crossfade
-      if (isCrossfading && state.stationPlaying) {
-        const elapsed = now - crossfadeStartPerf;
-        const p = Math.max(0, Math.min(1, elapsed / CROSSFADE_DURATION_MS));
-        activeDeckFadeMultiplier = Math.sin(p * Math.PI * 0.5);
-        inactiveDeckFadeMultiplier = Math.cos(p * Math.PI * 0.5);
+    function animateWavyProgress() {
+      const nowPerf = performance.now();
+      let dt = (nowPerf - lastWavyFramePerf) / 1000;
+      lastWavyFramePerf = nowPerf;
+      if (dt <= 0 || dt > 0.1) dt = 0.016;
 
-        activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, activeDeckFadeMultiplier);
-        if (!inactiveDeck.paused) {
-          inactiveDeck.volume = computeDeckVolume(inactiveDeck, state.masterVolume, inactiveDeckFadeMultiplier);
-        }
+      // 1. Step crossfade & sync playback progress
+      stepBackgroundSafeCrossfade();
+      syncStationProgressFromActiveDeck();
 
-        if (p >= 1) {
-          isCrossfading = false;
-          activeDeckFadeMultiplier = 1.0;
-          inactiveDeckFadeMultiplier = 0.0;
-          activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, 1.0);
-          try {
-            inactiveDeck.pause();
-            inactiveDeck.currentTime = 0;
-          } catch (e) {}
-        }
-      }
-
-      // 2. Sync progress from activeDeck (plays all the way to 100% natural 'ended' event without premature cut-off #2)
-      if (state.stationPlaying && !isSeekingWavy && now > seekLockUntil) {
-        const dur = activeDeck.duration;
-        if (!activeDeck.paused && !activeDeck.seeking && dur > 5 && isFinite(dur)) {
-          state.stationProgress = Math.max(0, Math.min(1, activeDeck.currentTime / dur));
-        }
-      }
-
-      // 3. Render M3 Expressive Wavy Progress Bar using cached theme tokens (zero getComputedStyle thrashing)
+      // 2. Render M3 Expressive Wavy Progress Bar using cached dimensions (ZERO layout reflow when clicking ambient chips #2)
       if (state.musicPopoverOpen) {
-        const rect = wavyProgressContainer.getBoundingClientRect();
-        const w = rect.width;
-        const h = rect.height;
+        if (cachedWavyWidth === 0 || cachedWavyHeight === 0) {
+          resizeWavyCanvas();
+        }
+        const w = cachedWavyWidth;
+        const h = cachedWavyHeight;
         if (w > 0 && h > 0) {
-          const dpr = window.devicePixelRatio || 1;
-          if (wavyProgressCanvas.width !== Math.round(w * dpr)) {
-            resizeWavyCanvas();
-          }
           wavyCtx.clearRect(0, 0, w, h);
 
-          const targetAmp = state.stationPlaying ? 4.2 : 0;
-          state.wavyAmp += (targetAmp - state.wavyAmp) * 0.14;
-          if (state.stationPlaying) {
-            state.wavyPhase += 0.10;
+          const realPlaying = isStationAudioActuallyOutputting();
+          const targetAmp = realPlaying ? 4.2 : 0;
+          state.wavyAmp += (targetAmp - state.wavyAmp) * Math.min(1, dt * 10);
+          if (realPlaying) {
+            state.wavyPhase += dt * 6.2;
           }
 
           const tokens = getThemeTokens();
@@ -3045,7 +3451,7 @@
       const clampedRel = Math.max(0, Math.min(1, rel));
       state.stationProgress = clampedRel;
       seekLockUntil = performance.now() + 850;
-      const dur = activeDeck.duration;
+      const dur = getEffectiveTrackDuration(activeDeck);
 
       // Allow user to pull the progress bar all the way to the very end (100%):
       // Hold at 100% briefly so the full wave is visible, then advance cleanly if playing.
@@ -3662,28 +4068,76 @@
     });
 
     // =========================================================================
-    // 13. ALWAYS-ONLINE CAMPUS WI-FI KEEP-ALIVE & SCREEN WAKE LOCK DAEMON (#6):
-    //     Prevents MacBook / campus Wi-Fi from dropping connection or suspending
-    //     the web app when the screen dims or locks:
-    //     1. Screen Wake Lock API (`navigator.wakeLock.request('screen')`)
-    //     2. Sub-audible Web Audio keep-alive node to prevent macOS App Nap
-    //     3. Periodic 18s HTTP keep-alive heartbeat ping (`keepalive: true`)
-    //     4. Instant audio stream & wall-clock timer recovery on `online` / `visibilitychange`
+    // 13. SCREEN-OFF BACKGROUND NETWORK KEEP-ALIVE ENGINE (#5):
+    //     Does NOT lock the screen on (`navigator.wakeLock` removed so screen turns off normally!).
+    //     Ensures the website continues running and stays connected to campus Wi-Fi in the background
+    //     when the screen turns off or the user switches tabs:
+    //     1. Dedicated Background Web Worker (`keepAliveWorker`) running unthrottled on a separate OS thread
+    //     2. Sub-audible Web Audio keep-alive stream (-90 dBFS) to exempt process from macOS App Nap when screen is off
+    //     3. Multi-endpoint HTTP `keepalive: true` network heartbeats every 10s (both Worker & Main thread)
+    //     4. Periodic IP-cloud task & overview sync across browsers
     // =========================================================================
-    let wakeLockSentinel = null;
     let keepAliveAudioStarted = false;
+    let backgroundWorker = null;
 
-    async function requestWakeLockAndKeepAlive() {
-      // 1. Request Screen Wake Lock so MacBook screen stays awake
-      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
-        try {
-          if (!wakeLockSentinel || wakeLockSentinel.released) {
-            wakeLockSentinel = await navigator.wakeLock.request('screen');
+    function startBackgroundNetworkWorker() {
+      if (backgroundWorker) return;
+      try {
+        const workerCode = `
+          const PING_URLS = [
+            'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg',
+            'https://api.ipify.org?format=json',
+            'https://www.cloudflare.com/cdn-cgi/trace'
+          ];
+          let pingCounter = 0;
+          // 1. Unthrottled 250ms background tick for Pomodoro timer, audio progress & crossfade even when screen is off
+          setInterval(() => {
+            self.postMessage({ type: 'bg_tick' });
+          }, 250);
+          // 2. Unthrottled 10s network keep-alive ping from Worker thread so Wi-Fi stays active when screen turns off
+          setInterval(() => {
+            const baseUrl = PING_URLS[pingCounter % PING_URLS.length];
+            pingCounter++;
+            const sep = baseUrl.includes('?') ? '&' : '?';
+            fetch(baseUrl + sep + '_ka=' + Date.now(), {
+              method: 'GET',
+              mode: 'no-cors',
+              cache: 'no-store',
+              keepalive: true
+            }).catch(() => {});
+            self.postMessage({ type: 'bg_network_keepalive' });
+          }, 10000);
+        `;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        backgroundWorker = new Worker(URL.createObjectURL(blob));
+        backgroundWorker.onmessage = (e) => {
+          const msg = e.data;
+          if (!msg) return;
+          if (msg.type === 'bg_tick') {
+            syncTimerFromWallClock();
+            stepBackgroundSafeCrossfade();
+            syncStationProgressFromActiveDeck();
+          } else if (msg.type === 'bg_network_keepalive') {
+            // Secondary main-thread keepalive ping & IP cloud sync
+            fetch(`https://actions.google.com/sounds/v1/household/lamp_switch_near.ogg?_ka=${Date.now()}`, {
+              method: 'HEAD',
+              mode: 'no-cors',
+              cache: 'no-store',
+              keepalive: true
+            }).catch(() => {});
+            pullDailyDataFromIPCloud();
           }
-        } catch (e) {}
-      }
+        };
+      } catch (e) {}
+    }
 
-      // 2. Start ultra-quiet (-90 dBFS) Web Audio keep-alive oscillator so macOS never puts tab or Wi-Fi socket into App Nap
+    function requestWakeLockAndKeepAlive() {
+      // NOTE: Screen Wake Lock (`navigator.wakeLock`) is intentionally NOT used here (#5),
+      // so the user's screen can dim and turn off normally while the app stays online in the background!
+      startBackgroundNetworkWorker();
+
+      // Start ultra-quiet (-90 dBFS) Web Audio keep-alive oscillator so macOS/Windows grants
+      // background audio & network socket priority when the screen turns off
       try {
         ensureAudioCtx();
         if (audioCtx && !keepAliveAudioStarted) {
@@ -3703,9 +4157,10 @@
     function recoverAudioAndTimerAfterWakeOrReconnect() {
       syncTimerFromWallClock();
       requestWakeLockAndKeepAlive();
+      pullDailyDataFromIPCloud();
 
-      // Resume Station music if it was playing and got interrupted by network blip
-      if (state.stationPlaying && activeDeck && activeDeck.paused) {
+      // Resume Station music if it was playing and got interrupted by a network blip
+      if (state.stationPlaying && activeDeck && activeDeck.paused && !isSeekingWavy) {
         activeDeck.play().catch(() => {
           transitionToTrack(pickRandomNextTrackIndex());
         });
@@ -3726,10 +4181,13 @@
       }
     }
 
-    // Periodic 18-second Campus Wi-Fi Keep-Alive Heartbeat Ping
-    // Keeps NAT states and campus Wi-Fi 802.1X sessions active continuously
+    // Start background network worker immediately on page load
+    startBackgroundNetworkWorker();
+
+    // Fallback interval in case Worker is restricted
     setInterval(() => {
       syncTimerFromWallClock();
+      syncStationProgressFromActiveDeck();
       const pingUrl = `https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg?keepalive=${Date.now()}`;
       fetch(pingUrl, {
         method: 'HEAD',
@@ -3737,7 +4195,8 @@
         cache: 'no-store',
         keepalive: true
       }).catch(() => {});
-    }, 18000);
+      pullDailyDataFromIPCloud();
+    }, 12000);
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
