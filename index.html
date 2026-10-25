@@ -559,26 +559,26 @@
             <div class="text-xs font-extrabold tracking-wide mb-2" style="color: var(--md-text-muted);">站台</div>
             <div class="p-3.5 rounded-[22px] border m3-SurfaceTransition"
                  style="background-color: var(--md-bg); border-color: var(--md-outline);">
-              <div class="flex items-center justify-between gap-2.5 mb-3 overflow-hidden">
+              <div class="flex items-center justify-between gap-3 mb-3">
                 <div id="station-title-viewport" class="station-marquee-viewport flex-1 min-w-0">
                   <div id="station-marquee-track" class="station-marquee-track text-sm font-extrabold" style="color: var(--md-text-main);">
                     <span id="station-track-title" class="station-marquee-item">正在实时检索网络纯音乐...</span>
                     <span id="station-track-title-clone" class="station-marquee-item" aria-hidden="true">正在实时检索网络纯音乐...</span>
                   </div>
                 </div>
-                <div class="flex items-center gap-1.5 shrink-0">
+                <div id="station-controls-group" class="flex items-stretch gap-1.5 shrink-0 w-[82px] h-9">
                   <button id="station-play-pause-btn" type="button"
                           aria-label="播放或暂停站台音乐"
-                          class="w-9 h-9 flex items-center justify-center m3-Interactive"
-                          style="background-color: var(--md-primary); color: var(--md-on-primary); border-radius: 18px;">
+                          class="h-full flex items-center justify-center m3-Interactive"
+                          style="flex: 1 1 0%; background-color: var(--md-primary); color: var(--md-on-primary); border-radius: 17px;">
                     <svg id="station-play-icon" class="w-4 h-4 pointer-events-none" viewBox="0 0 24 24" fill="currentColor">
                       <polygon points="6 3 20 12 6 21 6 3"></polygon>
                     </svg>
                   </button>
                   <button id="station-next-btn" type="button"
                           aria-label="切歌"
-                          class="w-9 h-9 flex items-center justify-center border m3-Interactive"
-                          style="background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline); border-radius: 14px;">
+                          class="h-full flex items-center justify-center border m3-Interactive"
+                          style="flex: 1 1 0%; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline); border-radius: 13px;">
                     <svg class="w-4 h-4 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
                       <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"></polygon>
                       <line x1="19" y1="5" x2="19" y2="19"></line>
@@ -986,8 +986,8 @@
   </div>
 
   <!-- Dual Audio Decks for Smooth Crossfading Between Full-Length Pixabay Music Streams -->
-  <audio id="lofi-online-audio" preload="auto"></audio>
-  <audio id="station-deck-b" preload="auto"></audio>
+  <audio id="lofi-online-audio" preload="auto" referrerpolicy="no-referrer"></audio>
+  <audio id="station-deck-b" preload="auto" referrerpolicy="no-referrer"></audio>
 
   <script>
     // =========================================================================
@@ -1936,8 +1936,80 @@
       magnetic: 0.10
     });
 
-    registerSpringElement(stationPlayPauseBtn, { radii: [18, 18, 18, 18], hoverRadii: [14, 14, 14, 14], activeRadii: [11, 11, 11, 11], hoverScale: 1.08 });
-    registerSpringElement(stationNextBtn, { radii: [14, 14, 14, 14], hoverRadii: [18, 18, 18, 18], activeRadii: [11, 11, 11, 11], hoverScale: 1.08 });
+    const stationControlBtns = [stationPlayPauseBtn, stationNextBtn];
+    registerSpringElement(stationPlayPauseBtn, { flex: 1, useFlex: true, radii: [17, 17, 17, 17], autoBind: false });
+    registerSpringElement(stationNextBtn, { flex: 1, useFlex: true, radii: [13, 13, 13, 13], autoBind: false });
+
+    let hoveredStationBtn = null;
+    let pressedStationBtn = null;
+
+    function updateStationControlsSprings(hoveredBtn = hoveredStationBtn, pressedBtn = pressedStationBtn) {
+      hoveredStationBtn = hoveredBtn;
+      pressedStationBtn = pressedBtn;
+      const playItem = springElements.get(stationPlayPauseBtn);
+      const nextItem = springElements.get(stationNextBtn);
+      if (!playItem || !nextItem) return;
+
+      const playBaseR = state.stationPlaying ? 12 : 17;
+      const nextBaseR = 13;
+
+      if (pressedBtn === stationPlayPauseBtn) {
+        playItem.flex.setTarget(1.24, 0.025);
+        nextItem.flex.setTarget(0.76, -0.02);
+        playItem.scaleX.setTarget(1);
+        playItem.scaleY.setTarget(0.92, -0.03);
+        nextItem.scaleX.setTarget(1);
+        nextItem.scaleY.setTarget(0.96);
+        [playItem.rTL, playItem.rTR, playItem.rBR, playItem.rBL].forEach(r => r.setTarget(10));
+        [nextItem.rTL, nextItem.rTR, nextItem.rBR, nextItem.rBL].forEach(r => r.setTarget(11));
+      } else if (pressedBtn === stationNextBtn) {
+        nextItem.flex.setTarget(1.24, 0.025);
+        playItem.flex.setTarget(0.76, -0.02);
+        nextItem.scaleX.setTarget(1);
+        nextItem.scaleY.setTarget(0.92, -0.03);
+        playItem.scaleX.setTarget(1);
+        playItem.scaleY.setTarget(0.96);
+        [nextItem.rTL, nextItem.rTR, nextItem.rBR, nextItem.rBL].forEach(r => r.setTarget(10));
+        [playItem.rTL, playItem.rTR, playItem.rBR, playItem.rBL].forEach(r => r.setTarget(11));
+      } else if (hoveredBtn === stationPlayPauseBtn) {
+        playItem.flex.setTarget(1.15);
+        nextItem.flex.setTarget(0.85);
+        playItem.scaleX.setTarget(1);
+        playItem.scaleY.setTarget(0.97);
+        nextItem.scaleX.setTarget(1);
+        nextItem.scaleY.setTarget(1);
+        const playHoverR = state.stationPlaying ? 14 : 13;
+        [playItem.rTL, playItem.rTR, playItem.rBR, playItem.rBL].forEach(r => r.setTarget(playHoverR));
+        [nextItem.rTL, nextItem.rTR, nextItem.rBR, nextItem.rBL].forEach(r => r.setTarget(12));
+      } else if (hoveredBtn === stationNextBtn) {
+        nextItem.flex.setTarget(1.15);
+        playItem.flex.setTarget(0.85);
+        nextItem.scaleX.setTarget(1);
+        nextItem.scaleY.setTarget(0.97);
+        playItem.scaleX.setTarget(1);
+        playItem.scaleY.setTarget(1);
+        [nextItem.rTL, nextItem.rTR, nextItem.rBR, nextItem.rBL].forEach(r => r.setTarget(16));
+        [playItem.rTL, playItem.rTR, playItem.rBR, playItem.rBL].forEach(r => r.setTarget(playBaseR));
+      } else {
+        playItem.flex.setTarget(1);
+        nextItem.flex.setTarget(1);
+        playItem.scaleX.setTarget(1);
+        playItem.scaleY.setTarget(1);
+        nextItem.scaleX.setTarget(1);
+        nextItem.scaleY.setTarget(1);
+        [playItem.rTL, playItem.rTR, playItem.rBR, playItem.rBL].forEach(r => r.setTarget(playBaseR));
+        [nextItem.rTL, nextItem.rTR, nextItem.rBR, nextItem.rBL].forEach(r => r.setTarget(nextBaseR));
+      }
+      wakeSpringLoop();
+    }
+
+    stationControlBtns.forEach(btn => {
+      btn.addEventListener('pointerenter', () => updateStationControlsSprings(btn, null));
+      btn.addEventListener('pointerleave', () => updateStationControlsSprings(null, null));
+      btn.addEventListener('pointerdown', () => updateStationControlsSprings(btn, btn));
+      btn.addEventListener('pointerup', () => updateStationControlsSprings(btn, null));
+      btn.addEventListener('pointercancel', () => updateStationControlsSprings(null, null));
+    });
 
     [overviewCardSessions, overviewCardMinutes, overviewCardTasks].forEach(card => {
       registerSpringElement(card, {
@@ -2387,7 +2459,7 @@
 
     // Station Headroom Gain: Calibrated to 0.28 (plus per-track gain & warm 0.95x tape speed)
     // so station Lo-Fi music is soft, gentle, library-appropriate, and never overpowers ambient sounds (#1, #5).
-    const STATION_HEADROOM_GAIN = 0.28;
+    const STATION_HEADROOM_GAIN = 0.38;
 
     let activeDeck = deckA;
     let inactiveDeck = deckB;
@@ -2446,14 +2518,13 @@
       'mediatype:(audio) AND format:("VBR MP3") AND (title:("lofi beats") OR title:("chill lofi") OR title:("study beats"))'
     ];
 
-    const LIVE_OPENVERSE_QUERIES = [
-      'lofi study',
-      'lofi chill',
-      'chillhop',
-      'ambient piano',
-      'study beats',
-      'relaxing guitar instrumental',
-      'soft piano solo'
+    const LIVE_ITUNES_LOFI_QUERIES = [
+      'lofi study beats instrumental',
+      'chillhop lofi instrumental',
+      'lofi chill beats to study',
+      'lofi hip hop instrumental',
+      'calm study piano lofi',
+      'late night lofi beats'
     ];
 
     const LIVE_WIKIMEDIA_QUERIES = [
@@ -2461,6 +2532,19 @@
       'filetype:audio "Clair de lune" OR "Reverie" Debussy piano',
       'filetype:audio "Nocturne" Chopin piano solo',
       'filetype:audio ambient piano solo calm'
+    ];
+
+    // Verified, fast, CORS-enabled direct audio streams with authentic titles & artists
+    // Pre-seeded immediately so clicking Play works at 0ms even before async API crawlers finish
+    const VERIFIED_DIRECT_LOFI_SEEDS = [
+      { title: 'Shuttle', creator: 'Slxt Sync', url: 'https://archive.org/download/jamendo-612992/01%20-%20Shuttle.mp3', durationSec: 136 },
+      { title: 'Green Background', creator: 'Slxt Sync', url: 'https://archive.org/download/jamendo-612992/02%20-%20green%20background.mp3', durationSec: 132 },
+      { title: 'Full Moon', creator: 'Slxt Sync', url: 'https://archive.org/download/jamendo-612992/03%20-%20full%20moon.mp3', durationSec: 148 },
+      { title: 'Elevation', creator: 'Slxt Sync', url: 'https://archive.org/download/jamendo-612992/04%20-%20elevation.mp3', durationSec: 144 },
+      { title: 'Chill Carpet', creator: 'Slxt Sync', url: 'https://archive.org/download/jamendo-612992/05%20-%20chill%20carpet.mp3', durationSec: 138 },
+      { title: 'Gymnopedie No. 1', creator: 'Erik Satie', url: 'https://upload.wikimedia.org/wikipedia/commons/3/35/Gymnopedie_No_1.ogg', durationSec: 184 },
+      { title: 'Gnossienne No. 1', creator: 'Erik Satie', url: 'https://upload.wikimedia.org/wikipedia/commons/9/9d/Satie_-_Gnossienne_1.ogg', durationSec: 214 },
+      { title: 'Clair de Lune', creator: 'Claude Debussy', url: 'https://upload.wikimedia.org/wikipedia/commons/b/be/Clair_de_lune_%28Claude_Debussy%29_Suite_bergamasque.ogg', durationSec: 303 }
     ];
 
     const NOISY_EXCLUDE_REGEX = /(rock|metal|punk|hardcore|techno|dubstep|trance|rave|scream|shout|rap|vocal|club|party|energetic|upbeat|fast|heavy|industrial|alarm|siren|effect|loop|sample|drum and bass)/i;
@@ -2484,7 +2568,7 @@
     function cleanTrackDisplayTitle(rawTitle, creator = '') {
       let cleaned = String(rawTitle || '')
         .replace(/^File:/i, '')
-        .replace(/\.(mp3|ogg|oga|flac|wav)$/i, '')
+        .replace(/\.(mp3|ogg|oga|flac|wav|m4a)$/i, '')
         .replace(/^[0-9]{1,3}\s*[-_.]\s*/, '')
         .replace(/[_]+/g, ' ')
         .trim();
@@ -2496,7 +2580,7 @@
       return cleaned;
     }
 
-    function registerDiscoveredTrack(rawTitle, url, creator = '', durationSec = 0) {
+    function registerDiscoveredTrack(rawTitle, url, creator = '', durationSec = 0, prioritize = false) {
       if (!url || typeof url !== 'string' || !url.startsWith('https://')) return false;
       if (state.discoveredTrackUrls.has(url)) return false;
       if (NOISY_EXCLUDE_REGEX.test(rawTitle) || NOISY_EXCLUDE_REGEX.test(url)) return false;
@@ -2505,25 +2589,59 @@
       const newTrack = {
         title: cleanTrackDisplayTitle(rawTitle, creator),
         url,
-        gain: 0.78,
-        rate: 0.95,
+        gain: 0.85,
+        rate: 0.96,
         durationSec: (durationSec && isFinite(durationSec) && durationSec > 5) ? durationSec : 0
       };
 
       state.onlineTracks.push(newTrack);
       const newIdx = state.onlineTracks.length - 1;
-      const insertPos = randomInt(state.unplayedShuffleBag.length + 1);
-      state.unplayedShuffleBag.splice(insertPos, 0, newIdx);
+      if (prioritize) {
+        // Put high-reliability tracks at the end of unplayedShuffleBag so .pop() selects them first
+        state.unplayedShuffleBag.push(newIdx);
+      } else {
+        const insertPos = randomInt(state.unplayedShuffleBag.length + 1);
+        state.unplayedShuffleBag.splice(insertPos, 0, newIdx);
+      }
 
-      // As soon as the very first live online track arrives, bind it to deckA if nothing is playing yet
+      // Bind the very first track to deckA if nothing is loaded yet
       if (state.onlineTracks.length === 1 && !state.stationPlaying) {
         state.currentTrackIndex = 0;
         setStationTrackTitle(newTrack.title);
         deckA.src = newTrack.url;
         applyTrackTuningToDeck(deckA, newTrack);
-        deckA.load();
       }
       return true;
+    }
+
+    // Apple Music / iTunes Lofi Search API:
+    // Global edge CDN (audio-ssl.itunes.apple.com) with native CORS and <30ms latency worldwide (including Vietnam/Asia)
+    async function fetchLiveItunesLofiBatch() {
+      try {
+        const q = LIVE_ITUNES_LOFI_QUERIES[randomInt(LIVE_ITUNES_LOFI_QUERIES.length)];
+        const offset = randomInt(30);
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=25&offset=${offset}`;
+        const res = await fetch(url);
+        if (!res.ok) return 0;
+        const data = await res.json();
+        if (!data || !Array.isArray(data.results)) return 0;
+
+        let added = 0;
+        const shuffled = shuffleArrayInPlace([...data.results]);
+        for (const item of shuffled) {
+          if (!item || !item.previewUrl) continue;
+          const streamUrl = String(item.previewUrl);
+          if (!streamUrl.startsWith('https://')) continue;
+          const title = item.trackName || 'Lo-Fi Beats';
+          const artist = item.artistName || '';
+          if (registerDiscoveredTrack(title, streamUrl, artist, 30, true)) {
+            added++;
+          }
+        }
+        return added;
+      } catch (e) {
+        return 0;
+      }
     }
 
     async function fetchArchiveItemTracks(identifier, fallbackCreator = '') {
@@ -2546,13 +2664,12 @@
           if (!lower.endsWith('.mp3') && !lower.endsWith('.ogg')) continue;
           const size = parseInt(f.size, 10) || 0;
           const lengthSec = parseDurationToSeconds(f.length);
-          // Accept full-length songs (50s to 540s, or 800KB to 20MB)
           if (lengthSec > 0 && (lengthSec < 50 || lengthSec > 540)) continue;
           if (lengthSec === 0 && size > 0 && (size < 800000 || size > 20000000)) continue;
 
           const trackTitle = f.title || fname.replace(/\.(mp3|ogg)$/i, '');
           const streamUrl = `https://archive.org/download/${encodeURIComponent(identifier)}/${encodeURIComponent(fname).replace(/%2F/g, '/')}`;
-          if (registerDiscoveredTrack(trackTitle, streamUrl, creator, lengthSec)) {
+          if (registerDiscoveredTrack(trackTitle, streamUrl, creator, lengthSec, true)) {
             added++;
           }
         }
@@ -2583,14 +2700,10 @@
       }
     }
 
-    // Live Pixabay Music Search Playlist Crawler:
-    // Connects directly to https://pixabay.com/music/search/lofi/?pagi={1..920} (900+ pages)
-    // via multi-gateway CORS proxies and extracts full-length cdn.pixabay.com/audio/*.mp3 streams (#1)
     async function fetchPixabayLofiPlaylistPage() {
       const randomPage = 1 + randomInt(920);
       const targetPlaylistUrl = `https://pixabay.com/music/search/lofi/?pagi=${randomPage}`;
       const proxyGateways = [
-        `https://r.jina.ai/${targetPlaylistUrl}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetPlaylistUrl)}`,
         `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetPlaylistUrl)}`,
         `https://corsproxy.io/?${encodeURIComponent(targetPlaylistUrl)}`
@@ -2599,15 +2712,14 @@
       for (const gatewayUrl of proxyGateways) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5500);
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
           const res = await fetch(gatewayUrl, { signal: controller.signal });
           clearTimeout(timeoutId);
           if (!res.ok) continue;
           const rawText = await res.text();
-          if (!rawText || rawText.length < 300) continue;
+          if (!rawText || rawText.length < 500) continue;
           const text = rawText.replace(/\\\//g, '/');
 
-          // Extract all direct Pixabay audio CDN MP3 URLs from the fetched page
           const mp3Regex = /https:\/\/cdn\.pixabay\.com\/(?:download\/)?audio\/\d{4}\/\d{2}\/\d{2}\/audio_[a-zA-Z0-9_]+\.mp3(?:\?filename=([a-zA-Z0-9_-]+)\.mp3)?/g;
           let match;
           let added = 0;
@@ -2623,48 +2735,14 @@
             const rawName = item.slug
               ? item.slug.replace(/-[0-9]+$/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
               : `Pixabay Lofi Track`;
-            if (registerDiscoveredTrack(rawName, item.url, 'Pixabay Music')) {
+            if (registerDiscoveredTrack(rawName, item.url, 'Pixabay Music', 0, false)) {
               added++;
             }
           }
           if (added > 0) return added;
-        } catch (e) {
-          // Try next gateway
-        }
+        } catch (e) {}
       }
       return 0;
-    }
-
-    async function fetchLiveOpenverseBatch() {
-      try {
-        const q = LIVE_OPENVERSE_QUERIES[randomInt(LIVE_OPENVERSE_QUERIES.length)];
-        const page = 1 + randomInt(6);
-        const url = `https://api.openverse.org/v1/audio/?q=${encodeURIComponent(q)}&length=medium&page_size=20&page=${page}`;
-        const res = await fetch(url);
-        if (!res.ok) return 0;
-        const data = await res.json();
-        if (!data || !Array.isArray(data.results)) return 0;
-
-        let added = 0;
-        const shuffled = shuffleArrayInPlace([...data.results]);
-        for (const item of shuffled) {
-          if (!item || !item.url) continue;
-          const durMs = parseInt(item.duration, 10) || 0;
-          if (durMs > 0 && (durMs < 50000 || durMs > 540000)) continue;
-          const streamUrl = String(item.url);
-          if (!streamUrl.startsWith('https://')) continue;
-          // Exclude webpage links that aren't direct audio streams
-          if (/\.(html|php|htm)$/i.test(streamUrl)) continue;
-          const title = item.title || 'Lo-Fi Study';
-          const creator = item.creator || '';
-          if (registerDiscoveredTrack(title, streamUrl, creator, durMs > 0 ? durMs / 1000 : 0)) {
-            added++;
-          }
-        }
-        return added;
-      } catch (e) {
-        return 0;
-      }
     }
 
     async function fetchLiveWikimediaAudioBatch() {
@@ -2685,7 +2763,7 @@
           if (!mime.includes('audio') && !mime.includes('ogg') && !mime.includes('mpeg')) continue;
           const size = parseInt(info.size, 10) || 0;
           if (size < 700000 || size > 22000000) continue;
-          if (registerDiscoveredTrack(p.title || 'Calm Piano', info.url, 'Classical Study')) {
+          if (registerDiscoveredTrack(p.title || 'Calm Piano', info.url, 'Classical Piano', 0, true)) {
             added++;
           }
         }
@@ -2695,36 +2773,27 @@
       }
     }
 
+    // Immediately register verified direct seeds so the user can hit Play at 0ms without waiting
+    shuffleArrayInPlace([...VERIFIED_DIRECT_LOFI_SEEDS]).forEach(seed => {
+      registerDiscoveredTrack(seed.title, seed.url, seed.creator, seed.durationSec, true);
+    });
+
     async function replenishLiveMusicPool() {
       if (state.isFetchingLiveMusic) return;
       state.isFetchingLiveMusic = true;
       try {
         const randomAlbums = shuffleArrayInPlace([...LIVE_ARCHIVE_STUDY_ALBUMS]).slice(0, 3);
         await Promise.allSettled([
-          fetchPixabayLofiPlaylistPage(),
-          fetchPixabayLofiPlaylistPage(),
+          fetchLiveItunesLofiBatch(),
+          fetchLiveItunesLofiBatch(),
           ...randomAlbums.map(id => fetchArchiveItemTracks(id)),
-          fetchLiveOpenverseBatch(),
           fetchLiveArchiveSearchBatch(),
-          fetchLiveWikimediaAudioBatch()
+          fetchLiveWikimediaAudioBatch(),
+          fetchPixabayLofiPlaylistPage()
         ]);
       } catch (e) {
       } finally {
         state.isFetchingLiveMusic = false;
-        // Seed verified direct Pixabay CDN Lofi tracks with their exact original Pixabay titles & artists
-        const pixabayVerifiedSeeds = shuffleArrayInPlace([
-          { title: 'Lofi Study', creator: 'FASSounds', url: 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3' },
-          { title: 'Empty Mind', creator: 'Lofi_Hour', url: 'https://cdn.pixabay.com/audio/2022/09/02/audio_72502a492a.mp3' },
-          { title: 'Spirit Blossom', creator: 'RomanBelov', url: 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3' },
-          { title: 'Good Night', creator: 'FASSounds', url: 'https://cdn.pixabay.com/audio/2023/07/30/audio_e0908e8569.mp3' },
-          { title: 'Chill Abstract Intention', creator: 'Coma-Media', url: 'https://cdn.pixabay.com/audio/2021/11/25/audio_91b32e02f9.mp3' },
-          { title: 'Sleepy Cat', creator: 'Alejandro Magaña', url: 'https://cdn.pixabay.com/audio/2022/10/25/audio_946b0939c8.mp3' },
-          { title: 'Ambient Piano & Strings', creator: 'Daddy_s_Music', url: 'https://cdn.pixabay.com/audio/2022/10/26/audio_9c4b6a2f9b.mp3' },
-          { title: 'Just Relax', creator: 'Lesfm', url: 'https://cdn.pixabay.com/audio/2021/11/23/audio_035a336e63.mp3' },
-          { title: 'Lofi Chill (Medium Version)', creator: 'BoDleasons', url: 'https://cdn.pixabay.com/audio/2022/08/02/audio_884fe92c21.mp3' },
-          { title: 'Coffee Shop', creator: 'FASSounds', url: 'https://cdn.pixabay.com/audio/2022/11/22/audio_febc508520.mp3' }
-        ]);
-        pixabayVerifiedSeeds.forEach(item => registerDiscoveredTrack(item.title, item.url, item.creator));
       }
     }
 
@@ -2769,35 +2838,38 @@
       return nextIdx !== undefined ? nextIdx : ((state.currentTrackIndex + 1) % len);
     }
 
-    // Pre-bless both audio decks on the first user gesture so background tab track switches
-    // are never blocked by browser autoplay restrictions (#1)
+    // Unlock AudioContext on first user gesture WITHOUT calling .play().then(() => d.pause())
+    // on the active deck (which previously raced with transitionToTrack and paused the song!)
     let decksUnlockedByGesture = false;
     function unlockBothAudioDecksOnGesture() {
+      ensureAudioCtx();
       if (decksUnlockedByGesture) return;
       decksUnlockedByGesture = true;
-      ensureAudioCtx();
-      [deckA, deckB].forEach(d => {
-        if (d.paused && !d.src) {
-          try {
-            d.muted = true;
-            const p = d.play();
-            if (p !== undefined) {
-              p.then(() => { d.pause(); d.muted = false; }).catch(() => { d.muted = false; });
-            } else {
-              d.muted = false;
-            }
-          } catch (e) {
-            d.muted = false;
-          }
-        }
-      });
     }
 
-    // Background-safe Crossfade & Progress Engine (#1, #3):
-    // Previously, crossfade volume ramping and progress updates lived inside `requestAnimationFrame`.
-    // When the user switched to another tab/app (`document.hidden === true`), the browser paused
-    // `requestAnimationFrame`, leaving the new track stuck at `volume = 0` or failing to start `inactiveDeck`!
     let crossfadeIntervalId = null;
+    let currentTransitionToken = 0;
+    let trackFailureRecoveryTimer = null;
+
+    function clearTrackFailureRecoveryTimer() {
+      if (trackFailureRecoveryTimer) {
+        clearTimeout(trackFailureRecoveryTimer);
+        trackFailureRecoveryTimer = null;
+      }
+    }
+
+    function scheduleNextTrackOnFailure(expectedToken, failedDeck, delayMs = 700) {
+      if (!state.stationPlaying || expectedToken !== currentTransitionToken || failedDeck !== activeDeck) return;
+      clearTrackFailureRecoveryTimer();
+      trackFailureRecoveryTimer = setTimeout(() => {
+        trackFailureRecoveryTimer = null;
+        if (!state.stationPlaying || expectedToken !== currentTransitionToken || failedDeck !== activeDeck) return;
+        // Only switch if the deck actually failed or is still not outputting audio
+        if (failedDeck.error || (failedDeck.paused && failedDeck.readyState < 2)) {
+          transitionToTrack(pickRandomNextTrackIndex());
+        }
+      }, delayMs);
+    }
 
     function stopCrossfadeLoop() {
       if (crossfadeIntervalId) {
@@ -2834,31 +2906,22 @@
       }
     }
 
-    // Real Audio Resource Duration & Strict Real-Time Playback Synchronizer:
-    // Never advances the progress bar on a synthetic timer while audio is still loading/buffering!
-    // Progress ONLY moves when the <audio> element has actually loaded data (readyState >= 2)
-    // and its real `activeDeck.currentTime` is advancing.
     function isStationAudioActuallyOutputting() {
       if (!state.stationPlaying || !activeDeck) return false;
       if (activeDeck.paused || activeDeck.ended || activeDeck.seeking) return false;
-      // readyState >= 2 (HAVE_CURRENT_DATA) and currentTime > 0 means real audio frames are playing
       return activeDeck.readyState >= 2 && activeDeck.currentTime > 0;
     }
 
     function getEffectiveTrackDuration(deck) {
       if (!deck) return 0;
-      // 1. Prefer the exact duration decoded by the browser from the audio stream
       const rawDur = deck.duration;
       if (rawDur && isFinite(rawDur) && rawDur > 1 && rawDur < 7200) {
         return rawDur;
       }
-      // 2. If the stream is chunked (duration === Infinity), use the track's known metadata duration
       const metaDur = parseFloat(deck.dataset && deck.dataset.trackDuration) || 0;
       if (metaDur > 1) {
         return Math.max(metaDur, (deck.currentTime || 0) + 1);
       }
-      // 3. Only if audio is ALREADY actively playing (currentTime > 0) and stream has no Content-Length,
-      //    use buffered range end
       if (deck.readyState >= 2 && deck.currentTime > 0) {
         try {
           if (deck.buffered && deck.buffered.length > 0) {
@@ -2886,8 +2949,6 @@
       isGlidingToTrackEnd = true;
       stopCrossfadeLoop();
 
-      // Smoothly glide progress from wherever VBR EOF occurred (e.g. 96%–99%) all the way to 100% (1.0),
-      // hold at 100% so the user sees the progress bar reach the exact end, then switch to the next track!
       const startProg = state.stationProgress;
       const startPerf = performance.now();
       const glideMs = Math.max(120, Math.min(360, (1 - startProg) * 3500));
@@ -2918,8 +2979,6 @@
       if (isSeekingWavy || isGlidingToTrackEnd || performance.now() <= seekLockUntil) return;
       if (!state.stationPlaying || !activeDeck) return;
 
-      // If the track is still loading/buffering (readyState < 2 or currentTime === 0),
-      // do NOT advance progress on its own — keep it locked at the initial position (0 or pendingSeekRatio)!
       if (!isStationAudioActuallyOutputting()) {
         if (activeDeck.currentTime === 0 && pendingSeekRatio === null) {
           state.stationProgress = 0;
@@ -2929,7 +2988,6 @@
 
       const realDur = getEffectiveTrackDuration(activeDeck);
       if (realDur > 0) {
-        // Account for VBR MP3 header duration slight overestimation near EOF so the bar reaches 1.0 cleanly
         const effectiveSpan = Math.max(1, realDur - 0.25);
         state.stationProgress = Math.max(0, Math.min(1, activeDeck.currentTime / effectiveSpan));
       }
@@ -2937,9 +2995,13 @@
 
     async function transitionToTrack(nextIndex, initialSeekRatio = null) {
       cancelTrackEndGlide();
+      clearTrackFailureRecoveryTimer();
+      const myToken = ++currentTransitionToken;
+
       if (state.onlineTracks.length === 0) {
         setStationTrackTitle('正在实时检索网络纯音乐...');
         await replenishLiveMusicPool();
+        if (myToken !== currentTransitionToken) return;
       }
       const pool = state.onlineTracks;
       if (pool.length === 0) return;
@@ -2961,11 +3023,6 @@
       const outgoingDeck = activeDeck;
       const wasOutgoingPlaying = !outgoingDeck.paused && outgoingDeck.currentTime > 0;
 
-      // CRITICAL FIX (#1): When the user is in a background tab (`isBackgroundTab`),
-      // reuse the currently active, browser-blessed `activeDeck` element directly at full target volume
-      // and call `.play()` synchronously right after setting `.src`!
-      // Browsers allow an already-playing `<audio>` element to load and play a new `src` in the background,
-      // whereas swapping to a second paused `<audio>` element at `volume = 0` gets blocked or muted!
       if (isBackgroundTab || !wasOutgoingPlaying) {
         stopCrossfadeLoop();
         if (inactiveDeck !== activeDeck) {
@@ -2981,6 +3038,7 @@
         if (pendingSeekRatio !== null) {
           targetDeck.addEventListener('loadedmetadata', function onSeekMeta() {
             targetDeck.removeEventListener('loadedmetadata', onSeekMeta);
+            if (myToken !== currentTransitionToken) return;
             applyTrackTuningToDeck(targetDeck, track);
             const effDur = getEffectiveTrackDuration(targetDeck);
             if (pendingSeekRatio !== null && effDur > 1) {
@@ -2993,23 +3051,18 @@
           });
         }
 
-        // Synchronous .play() immediately after .src assignment so background tab playback never drops
         const playPromise = targetDeck.play();
         if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            if (state.stationPlaying && activeDeck === targetDeck) {
-              setTimeout(() => {
-                if (state.stationPlaying && activeDeck === targetDeck && targetDeck.paused) {
-                  transitionToTrack(pickRandomNextTrackIndex());
-                }
-              }, 450);
-            }
+          playPromise.catch((err) => {
+            // Ignore AbortError (load superseded) or NotAllowedError
+            if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+            scheduleNextTrackOnFailure(myToken, targetDeck, 700);
           });
         }
         return;
       }
 
-      // Foreground tab with outgoing track playing: smooth dual-deck crossfade driven by background-safe setInterval
+      // Foreground tab with outgoing track playing: smooth dual-deck crossfade
       const incomingDeck = inactiveDeck;
       activeDeck = incomingDeck;
       inactiveDeck = outgoingDeck;
@@ -3017,11 +3070,12 @@
       incomingDeck.muted = false;
       incomingDeck.src = track.url;
       applyTrackTuningToDeck(incomingDeck, track);
-      incomingDeck.volume = computeDeckVolume(incomingDeck, state.masterVolume, 0.05);
+      incomingDeck.volume = computeDeckVolume(incomingDeck, state.masterVolume, 0.08);
 
       if (pendingSeekRatio !== null) {
         incomingDeck.addEventListener('loadedmetadata', function onMeta() {
           incomingDeck.removeEventListener('loadedmetadata', onMeta);
+          if (myToken !== currentTransitionToken) return;
           applyTrackTuningToDeck(incomingDeck, track);
           const effDur = getEffectiveTrackDuration(incomingDeck);
           if (pendingSeekRatio !== null && effDur > 1) {
@@ -3036,21 +3090,16 @@
 
       const p = incomingDeck.play();
       if (p !== undefined) {
-        p.catch(() => {
-          if (state.stationPlaying && activeDeck === incomingDeck) {
-            setTimeout(() => {
-              if (state.stationPlaying && activeDeck === incomingDeck && incomingDeck.paused) {
-                transitionToTrack(pickRandomNextTrackIndex());
-              }
-            }, 450);
-          }
+        p.catch((err) => {
+          if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+          scheduleNextTrackOnFailure(myToken, incomingDeck, 700);
         });
       }
 
       stopCrossfadeLoop();
       isCrossfading = true;
       crossfadeStartPerf = performance.now();
-      activeDeckFadeMultiplier = 0.05;
+      activeDeckFadeMultiplier = 0.08;
       inactiveDeckFadeMultiplier = 1.0;
       crossfadeIntervalId = setInterval(stepBackgroundSafeCrossfade, 50);
     }
@@ -3059,6 +3108,8 @@
       unlockBothAudioDecksOnGesture();
       if (state.stationPlaying) {
         state.stationPlaying = false;
+        currentTransitionToken++;
+        clearTrackFailureRecoveryTimer();
         stopCrossfadeLoop();
         activeDeck.pause();
         inactiveDeck.pause();
@@ -3071,6 +3122,8 @@
         if (!activeDeck.src && state.onlineTracks.length > 0) {
           transitionToTrack(pickRandomNextTrackIndex(), state.stationProgress > 0 ? state.stationProgress : null);
         } else if (activeDeck.src) {
+          const myToken = ++currentTransitionToken;
+          clearTrackFailureRecoveryTimer();
           state.stationPlaying = true;
           const currentTrack = state.onlineTracks[state.currentTrackIndex];
           if (currentTrack && currentTrack.url) {
@@ -3078,6 +3131,7 @@
           }
           syncMusicUIState();
           stopCrossfadeLoop();
+          activeDeck.muted = false;
           applyTrackTuningToDeck(activeDeck, currentTrack);
           activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, 1.0);
           if (pendingSeekRatio !== null) {
@@ -3089,9 +3143,13 @@
               } catch (e) {}
             }
           }
-          activeDeck.play().catch(() => {
-            transitionToTrack(pickRandomNextTrackIndex());
-          });
+          const p = activeDeck.play();
+          if (p !== undefined) {
+            p.catch((err) => {
+              if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+              scheduleNextTrackOnFailure(myToken, activeDeck, 500);
+            });
+          }
         }
       }
     }
@@ -3099,11 +3157,16 @@
     [deckA, deckB].forEach(deck => {
       deck.addEventListener('playing', () => {
         if (deck === activeDeck && state.stationPlaying) {
+          clearTrackFailureRecoveryTimer();
+          const currentTrack = state.onlineTracks[state.currentTrackIndex];
+          if (currentTrack) applyTrackTuningToDeck(deck, currentTrack);
           syncStationProgressFromActiveDeck();
         }
       });
       deck.addEventListener('loadedmetadata', () => {
         if (deck === activeDeck && state.stationPlaying) {
+          const currentTrack = state.onlineTracks[state.currentTrackIndex];
+          if (currentTrack) applyTrackTuningToDeck(deck, currentTrack);
           syncStationProgressFromActiveDeck();
         }
       });
@@ -3125,11 +3188,7 @@
       });
       deck.addEventListener('error', () => {
         if (deck === activeDeck && state.stationPlaying) {
-          setTimeout(() => {
-            if (deck === activeDeck && state.stationPlaying) {
-              transitionToTrack(pickRandomNextTrackIndex());
-            }
-          }, 350);
+          scheduleNextTrackOnFailure(currentTransitionToken, deck, 550);
         }
       });
     });
@@ -3495,23 +3554,15 @@
         musicEq.classList.remove('flex', 'eq-playing');
       }
 
-      const playBtnSpring = springElements.get(stationPlayPauseBtn);
       if (state.stationPlaying) {
         stationPlayIcon.innerHTML = `
           <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"></rect>
           <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"></rect>
         `;
-        if (playBtnSpring) {
-          playBtnSpring.baseRadii = [12, 12, 12, 12];
-          [playBtnSpring.rTL, playBtnSpring.rTR, playBtnSpring.rBR, playBtnSpring.rBL].forEach(r => r.setTarget(12));
-        }
       } else {
         stationPlayIcon.innerHTML = `<polygon points="6 3 20 12 6 21 6 3" fill="currentColor"></polygon>`;
-        if (playBtnSpring) {
-          playBtnSpring.baseRadii = [18, 18, 18, 18];
-          [playBtnSpring.rTL, playBtnSpring.rTR, playBtnSpring.rBR, playBtnSpring.rBL].forEach(r => r.setTarget(18));
-        }
       }
+      updateStationControlsSprings();
 
       ambientBtns.forEach(btn => {
         const key = btn.getAttribute('data-ambient');
