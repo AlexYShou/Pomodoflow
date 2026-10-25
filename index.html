@@ -1,0 +1,3770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pomodoflow</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='11' fill='%23B3261E'/%3E%3Cpath d='M16 9.5C10.2 9.5 6.5 13.1 6.5 18.2C6.5 23.3 10.6 26.8 16 26.8C21.4 26.8 25.5 23.3 25.5 18.2C25.5 13.1 21.8 9.5 16 9.5Z' fill='%23FFFFFF'/%3E%3Cpath d='M16 9.8C13.2 6.2 9.2 6.8 8.2 9.0C11.2 10.2 13.8 10.0 16 9.8Z' fill='%23FFDDB3'/%3E%3Cpath d='M16 9.8C18.8 6.2 22.8 6.8 23.8 9.0C20.8 10.2 18.2 10.0 16 9.8Z' fill='%23FFDDB3'/%3E%3Cpath d='M16 5.2V9.8' stroke='%23FFDDB3' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='18.2' r='5.2' fill='none' stroke='%23B3261E' stroke-width='2.1' stroke-dasharray='22 12' stroke-linecap='round'/%3E%3Cpath d='M16 15.2V18.2L18.4 19.8' fill='none' stroke='%23B3261E' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    /* =========================================================================
+       MATERIAL 3 EXPRESSIVE DYNAMIC COLOR TOKENS (LIGHT & DARK × 3 MODES)
+       ========================================================================= */
+    :root {
+      color-scheme: light;
+      /* Focus Mode - Light (Warm Terracotta) */
+      --md-bg: #FFF8F6;
+      --md-surface: #FCEAE5;
+      --md-surface-high: #F5DDD7;
+      --md-surface-card: #FFFFFF;
+      --md-primary: #B3261E;
+      --md-on-primary: #FFFFFF;
+      --md-primary-container: #FFDAD4;
+      --md-on-primary-container: #410001;
+      --md-secondary-container: #F9DEDC;
+      --md-on-secondary-container: #410E0B;
+      --md-tertiary-container: #FFDDB3;
+      --md-on-tertiary-container: #291800;
+      --md-outline: #E0BDBA;
+      --md-text-main: #231917;
+      --md-text-muted: #5C403C;
+      --md-ring-track: #F2D3CD;
+      --md-switch-off-rgb: 216, 194, 190;
+      --md-switch-on-rgb: 179, 38, 30;
+      --md-shadow: rgba(179, 38, 30, 0.08);
+    }
+
+    body[data-mode="shortBreak"] {
+      --md-bg: #F4FBF8;
+      --md-surface: #E2F3EC;
+      --md-surface-high: #D3EAE1;
+      --md-surface-card: #FFFFFF;
+      --md-primary: #006B58;
+      --md-on-primary: #FFFFFF;
+      --md-primary-container: #A1F2DC;
+      --md-on-primary-container: #002019;
+      --md-secondary-container: #CFE9DF;
+      --md-on-secondary-container: #072019;
+      --md-tertiary-container: #C4E7FF;
+      --md-on-tertiary-container: #001E2C;
+      --md-outline: #B4D2C7;
+      --md-text-main: #171D1B;
+      --md-text-muted: #3F4945;
+      --md-ring-track: #CBE6DC;
+      --md-switch-off-rgb: 180, 210, 199;
+      --md-switch-on-rgb: 0, 107, 88;
+      --md-shadow: rgba(0, 107, 88, 0.08);
+    }
+
+    body[data-mode="longBreak"] {
+      --md-bg: #FBF8FF;
+      --md-surface: #EFEBF9;
+      --md-surface-high: #E4DFF3;
+      --md-surface-card: #FFFFFF;
+      --md-primary: #5754A8;
+      --md-on-primary: #FFFFFF;
+      --md-primary-container: #E2DFFF;
+      --md-on-primary-container: #130E63;
+      --md-secondary-container: #E3E0F9;
+      --md-on-secondary-container: #19182C;
+      --md-tertiary-container: #FFD8EC;
+      --md-on-tertiary-container: #370726;
+      --md-outline: #C8C4DC;
+      --md-text-main: #1C1B22;
+      --md-text-muted: #474654;
+      --md-ring-track: #DCD8EE;
+      --md-switch-off-rgb: 200, 196, 220;
+      --md-switch-on-rgb: 87, 84, 168;
+      --md-shadow: rgba(87, 84, 168, 0.08);
+    }
+
+    /* Dark Mode Overrides across all 3 modes */
+    body.dark-mode {
+      color-scheme: dark;
+    }
+
+    body.dark-mode[data-mode="focus"] {
+      --md-bg: #16100F;
+      --md-surface: #251B19;
+      --md-surface-high: #322523;
+      --md-surface-card: #1E1514;
+      --md-primary: #FFB4A8;
+      --md-on-primary: #690005;
+      --md-primary-container: #7D1D16;
+      --md-on-primary-container: #FFDAD4;
+      --md-secondary-container: #4A3330;
+      --md-on-secondary-container: #FFDAD4;
+      --md-tertiary-container: #554017;
+      --md-on-tertiary-container: #FFDDB3;
+      --md-outline: #4E3D3A;
+      --md-text-main: #F5E2DF;
+      --md-text-muted: #CBB2AE;
+      --md-ring-track: #362624;
+      --md-switch-off-rgb: 78, 61, 58;
+      --md-switch-on-rgb: 224, 102, 90;
+      --md-shadow: rgba(0, 0, 0, 0.45);
+    }
+
+    body.dark-mode[data-mode="shortBreak"] {
+      --md-bg: #0E1513;
+      --md-surface: #182420;
+      --md-surface-high: #22312C;
+      --md-surface-card: #141E1B;
+      --md-primary: #85D6C0;
+      --md-on-primary: #00382D;
+      --md-primary-container: #005142;
+      --md-on-primary-container: #A1F2DC;
+      --md-secondary-container: #2B423B;
+      --md-on-secondary-container: #CFE9DF;
+      --md-tertiary-container: #1F4456;
+      --md-on-tertiary-container: #C4E7FF;
+      --md-outline: #384944;
+      --md-text-main: #E0EAE6;
+      --md-text-muted: #B2C4BE;
+      --md-ring-track: #22332E;
+      --md-switch-off-rgb: 56, 73, 68;
+      --md-switch-on-rgb: 46, 158, 133;
+      --md-shadow: rgba(0, 0, 0, 0.45);
+    }
+
+    body.dark-mode[data-mode="longBreak"] {
+      --md-bg: #121218;
+      --md-surface: #1E1E28;
+      --md-surface-high: #282836;
+      --md-surface-card: #181821;
+      --md-primary: #C3C0FF;
+      --md-on-primary: #282377;
+      --md-primary-container: #3F3C8F;
+      --md-on-primary-container: #E2DFFF;
+      --md-secondary-container: #38384C;
+      --md-on-secondary-container: #E3E0F9;
+      --md-tertiary-container: #543247;
+      --md-on-tertiary-container: #FFD8EC;
+      --md-outline: #434254;
+      --md-text-main: #E6E3F0;
+      --md-text-muted: #BEBBD0;
+      --md-ring-track: #2A293A;
+      --md-switch-off-rgb: 67, 66, 84;
+      --md-switch-on-rgb: 118, 114, 212;
+      --md-shadow: rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Unified Theme Transition: Eliminates full-page flash when switching Light <-> Dark (#3) */
+    body,
+    .m3-SurfaceTransition,
+    #mode-group,
+    #clock-card,
+    #today-tasks-section,
+    #focus-overview-section,
+    #music-popover-card,
+    #custom-duration-dialog,
+    #add-task-dialog,
+    #pixel-volume-slider,
+    #pixel-volume-fill {
+      transition: background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  border-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+      background-color: var(--md-bg);
+      color: var(--md-text-main);
+      overflow-x: hidden;
+    }
+
+    body.modal-open {
+      overflow: hidden !important;
+      height: 100vh;
+    }
+
+    .clock-digits {
+      font-family: 'Inter', 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.04em;
+    }
+
+    .progress-ring-circle {
+      transition: stroke-dashoffset 0.65s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    .progress-ring-track {
+      transition: stroke 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Fixed GPU-Composited Ambient Blob: Uses solid background-color instead of radial-gradient
+       so CSS transitions smoothly interpolate without destroying/flashing the blur texture (#3) */
+    .ambient-blob {
+      background-color: var(--md-primary-container);
+      filter: blur(88px);
+      opacity: 0.38;
+      pointer-events: none;
+      transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      will-change: background-color, opacity;
+      transition: background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    body.dark-mode .ambient-blob {
+      opacity: 0.20;
+    }
+
+    /* Universal M3 Expressive Interactive Element */
+    .m3-Interactive {
+      will-change: transform, border-radius, flex-grow;
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+      transition: background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  border-color 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .m3-Interactive::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: currentColor;
+      opacity: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      transition: opacity 0.2s ease;
+    }
+    .m3-Interactive:hover::after {
+      opacity: 0.06;
+    }
+    .m3-Interactive:active::after {
+      opacity: 0.12;
+    }
+
+    /* M3 Expressive Input Interactive Styling */
+    .m3-Input {
+      will-change: transform, border-radius;
+      transition: background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  border-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                  box-shadow 0.28s ease;
+    }
+    .m3-Input:focus {
+      border-color: var(--md-primary) !important;
+      box-shadow: 0 0 0 3px var(--md-primary-container);
+    }
+
+    /* =========================================================================
+       TOP-RIGHT M3 EXPRESSIVE SWITCH (1:1 Reference from m3_expressive.html)
+       ========================================================================= */
+    .m3e-switch-scale-box {
+      width: 68px;
+      height: 39px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .m3e-switch-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      touch-action: none;
+      outline: none;
+      transform: scale(0.607);
+      transform-origin: center center;
+    }
+
+    .m3e-switch-wrapper:active {
+      cursor: grabbing;
+    }
+
+    .m3e-switch-track {
+      position: relative;
+      width: 112px;
+      height: 64px;
+      border-radius: 32px;
+      transition: box-shadow 0.2s ease;
+      will-change: transform, background-color;
+    }
+
+    .m3e-thumb-halo {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 76px;
+      height: 76px;
+      border-radius: 26px;
+      background-color: rgba(128, 128, 128, 0.18);
+      pointer-events: none;
+      transform: translate3d(0, -50%, 0) scale(0.5);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      will-change: transform, opacity;
+    }
+
+    .m3e-switch-thumb {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 42px;
+      height: 46px;
+      border-radius: 14px;
+      background-color: #FFFFFF;
+      box-shadow: 0 4px 9px rgba(25, 20, 35, 0.20), 0 1.5px 3px rgba(25, 20, 35, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      will-change: transform, width, height, border-radius, box-shadow;
+    }
+
+    /* Music Equalizer Animation */
+    @keyframes eqBar1 {
+      0%, 100% { height: 5px; }
+      50% { height: 15px; }
+    }
+    @keyframes eqBar2 {
+      0%, 100% { height: 14px; }
+      33% { height: 5px; }
+      66% { height: 16px; }
+    }
+    @keyframes eqBar3 {
+      0%, 100% { height: 7px; }
+      40% { height: 15px; }
+      80% { height: 5px; }
+    }
+    .eq-playing .eq-1 { animation: eqBar1 0.7s ease-in-out infinite; }
+    .eq-playing .eq-2 { animation: eqBar2 0.6s ease-in-out infinite; }
+    .eq-playing .eq-3 { animation: eqBar3 0.8s ease-in-out infinite; }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--md-outline);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body data-mode="focus" class="min-h-screen lg:h-screen lg:overflow-hidden relative flex flex-col">
+
+  <!-- Expressive Ambient Background Blobs -->
+  <div class="ambient-blob fixed -top-24 -left-24 w-96 h-96 rounded-full z-0"></div>
+  <div class="ambient-blob fixed bottom-0 -right-28 w-[26rem] h-[26rem] rounded-full z-0"></div>
+
+  <!-- ========================================================================= -->
+  <!-- TOP NAVIGATION BAR: Left Brand + Right M3 Expressive Light/Dark Switch   -->
+  <!-- ========================================================================= -->
+  <header class="relative z-20 w-full max-w-[1360px] mx-auto px-5 sm:px-8 pt-4 pb-2 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <!-- Redesigned M3 Expressive Pomodoro Tomato Icon (#4) -->
+      <div id="brand-logo"
+           class="w-11 h-11 flex items-center justify-center shadow-sm m3-Interactive"
+           style="background-color: var(--md-primary); color: var(--md-on-primary); border-radius: 16px;">
+        <svg class="w-7 h-7 pointer-events-none" viewBox="0 0 32 32" fill="none">
+          <!-- Plump M3 Expressive Tomato Silhouette -->
+          <path d="M16 9.6C10.1 9.6 6.2 13.1 6.2 18.3C6.2 23.5 10.4 27.0 16 27.0C21.6 27.0 25.8 23.5 25.8 18.3C25.8 13.1 21.9 9.6 16 9.6Z"
+                fill="currentColor" />
+          <!-- Expressive Three-Leaf Tomato Crown / Calyx -->
+          <path d="M16 9.8C13.0 5.8 8.6 6.4 7.6 8.8C10.8 10.2 13.6 10.1 16 9.8Z"
+                fill="var(--md-tertiary-container)" />
+          <path d="M16 9.8C19.0 5.8 23.4 6.4 24.4 8.8C21.2 10.2 18.4 10.1 16 9.8Z"
+                fill="var(--md-tertiary-container)" />
+          <path d="M16 4.6V9.8"
+                stroke="var(--md-tertiary-container)" stroke-width="2.5" stroke-linecap="round" />
+          <!-- Embedded Pomodoro Focus Progress Ring & 25-Min Timer Hand inside Tomato -->
+          <circle cx="16" cy="18.4" r="5.3"
+                  stroke="var(--md-primary)" stroke-width="2.2" stroke-dasharray="23 11" stroke-linecap="round" />
+          <path d="M16 15.2V18.4L18.5 20.0"
+                stroke="var(--md-primary)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
+      <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight" style="color: var(--md-text-main);">Pomodoflow</h1>
+    </div>
+
+    <!-- Right: M3 Expressive Squircle Switch (Sun <-> Moon Icon Evolution) -->
+    <div class="m3e-switch-scale-box">
+      <div id="themeSwitch"
+           role="switch"
+           aria-checked="false"
+           aria-label="切换浅色或深色模式"
+           tabindex="0"
+           class="m3e-switch-wrapper">
+        <div id="themeTrack" class="m3e-switch-track">
+          <div id="themeHalo" class="m3e-thumb-halo"></div>
+          <div id="themeThumb" class="m3e-switch-thumb">
+            <svg id="themeThumbSvg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <g id="themeSunGroup">
+                <circle cx="12" cy="12" r="4.5" fill="currentColor"></circle>
+                <path d="M12 2v2.2M12 19.8V22M4.93 4.93l1.56 1.56M17.51 17.51l1.56 1.56M2 12h2.2M19.8 12H22M4.93 19.07l1.56-1.56M17.51 6.49l1.56-1.56"></path>
+              </g>
+              <g id="themeMoonGroup" class="hidden">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"></path>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- SINGLE-PAGE SPLIT SCREEN: Left Main Area | Right Secondary Area          -->
+  <!-- ========================================================================= -->
+  <main class="relative z-10 flex-1 w-full max-w-[1360px] mx-auto px-5 sm:px-8 pb-5 pt-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center min-h-0">
+
+    <!-- ======================================================================= -->
+    <!-- LEFT SCREEN (6 cols): MAIN POMODORO TIMER & CONTROLS                    -->
+    <!-- ======================================================================= -->
+    <section class="lg:col-span-6 h-full flex flex-col items-center justify-center min-h-0 py-2">
+
+      <!-- 1. Mode Switcher Above the Clock: 「专注」、「短歇」、「长歇」 -->
+      <div class="w-full max-w-md mb-5 shrink-0">
+        <div id="mode-group"
+             class="p-1.5 flex items-stretch gap-1.5 shadow-sm border h-13 sm:h-14"
+             style="background-color: var(--md-surface); border-color: var(--md-outline); border-radius: 28px;">
+          <button id="mode-focus-btn" type="button" data-mode-btn="focus"
+                  class="m3-Interactive font-bold text-sm sm:text-base flex items-center justify-center px-3"
+                  style="flex: 1.14 1 0%; border-radius: 22px; background-color: var(--md-primary); color: var(--md-on-primary);">
+            <span>专注</span>
+          </button>
+
+          <button id="mode-short-btn" type="button" data-mode-btn="shortBreak"
+                  class="m3-Interactive font-bold text-sm sm:text-base flex items-center justify-center px-3"
+                  style="flex: 0.93 1 0%; border-radius: 16px; background-color: transparent; color: var(--md-text-muted);">
+            <span>短歇</span>
+          </button>
+
+          <button id="mode-long-btn" type="button" data-mode-btn="longBreak"
+                  class="m3-Interactive font-bold text-sm sm:text-base flex items-center justify-center px-3"
+                  style="flex: 0.93 1 0%; border-radius: 16px; background-color: transparent; color: var(--md-text-muted);">
+            <span>长歇</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Center Circular Progress Pomodoro Clock -->
+      <div class="relative flex items-center justify-center my-1 shrink-0">
+        <div id="clock-card"
+             class="relative w-[276px] h-[276px] sm:w-[316px] sm:h-[316px] flex items-center justify-center border m3-Interactive"
+             style="background-color: var(--md-surface-card); border-color: var(--md-outline); border-radius: 56px; box-shadow: 0 18px 40px -12px var(--md-shadow);">
+
+          <svg class="w-[244px] h-[244px] sm:w-[284px] sm:h-[284px] pointer-events-none" viewBox="0 0 260 260">
+            <circle
+              class="progress-ring-track"
+              cx="130" cy="130" r="112"
+              fill="none"
+              stroke="var(--md-ring-track)"
+              stroke-width="16"
+              stroke-linecap="round"
+            />
+            <circle
+              id="progress-ring"
+              class="progress-ring-circle"
+              cx="130" cy="130" r="112"
+              fill="none"
+              stroke="var(--md-primary)"
+              stroke-width="16"
+              stroke-linecap="round"
+              stroke-dasharray="703.72"
+              stroke-dashoffset="0"
+            />
+          </svg>
+
+          <!-- Dead-Center Fixed Time Readout -->
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div id="timer-display"
+                 class="clock-digits text-6xl sm:text-7xl font-extrabold tracking-tight select-none leading-none"
+                 style="color: var(--md-text-main);">
+              25:00
+            </div>
+          </div>
+
+          <!-- Pencil Icon Positioned in the Clean Inner Space Below Time -->
+          <button id="pencil-edit-duration-btn" type="button"
+                  aria-label="自定义专注时间"
+                  class="absolute left-1/2 -translate-x-1/2 w-9 h-9 flex items-center justify-center m3-Interactive z-10"
+                  style="top: calc(50% + 44px); background-color: var(--md-surface); color: var(--md-primary); border-radius: 14px;">
+            <svg class="w-4 h-4 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Control Row Below the Clock + Floating Music Card Anchor -->
+      <div class="w-full max-w-xl mt-6 shrink-0 relative">
+
+        <!-- =================================================================== -->
+        <!-- FLOATING MUSIC CARD (悬浮卡片 - Pops up right above 「音乐」 button)  -->
+        <!-- =================================================================== -->
+        <div id="music-popover-card"
+             class="hidden absolute left-0 bottom-[calc(100%+14px)] w-[332px] sm:w-[380px] p-5 border z-40 origin-bottom-left"
+             style="background-color: var(--md-surface-card); border-color: var(--md-outline); border-radius: 32px; box-shadow: 0 24px 48px -12px rgba(0,0,0,0.28);">
+
+          <!-- LAYER 1: 「站台」 (Song Title + Play/Pause + Next/Cut + Interactive M3 Wavy Seekbar) -->
+          <div class="mb-4">
+            <div class="text-xs font-extrabold tracking-wide mb-2" style="color: var(--md-text-muted);">站台</div>
+            <div class="p-3.5 rounded-[22px] border m3-SurfaceTransition"
+                 style="background-color: var(--md-bg); border-color: var(--md-outline);">
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <div class="min-w-0 flex-1">
+                  <div id="station-track-title" class="text-sm font-extrabold truncate" style="color: var(--md-text-main);">
+                    正在连接开放曲库获取随机纯音乐...
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button id="station-play-pause-btn" type="button"
+                          aria-label="播放或暂停站台音乐"
+                          class="w-9 h-9 flex items-center justify-center m3-Interactive"
+                          style="background-color: var(--md-primary); color: var(--md-on-primary); border-radius: 18px;">
+                    <svg id="station-play-icon" class="w-4 h-4 pointer-events-none" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                    </svg>
+                  </button>
+                  <button id="station-next-btn" type="button"
+                          aria-label="切歌"
+                          class="w-9 h-9 flex items-center justify-center border m3-Interactive"
+                          style="background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline); border-radius: 14px;">
+                    <svg class="w-4 h-4 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"></polygon>
+                      <line x1="19" y1="5" x2="19" y2="19"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- M3 Expressive Wavy Progress Bar -->
+              <div id="wavy-progress-container"
+                   role="slider"
+                   aria-label="歌曲播放进度"
+                   aria-valuemin="0"
+                   aria-valuemax="100"
+                   aria-valuenow="0"
+                   class="relative w-full h-7 flex items-center cursor-pointer select-none touch-none">
+                <canvas id="wavy-progress-canvas" class="w-full h-7 block pointer-events-none"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- LAYER 2: 「背景音」 (雨天、壁炉、海浪、森林 in 1 row; 0, 1, or multi-select) -->
+          <div class="mb-4">
+            <div class="text-xs font-extrabold tracking-wide mb-2" style="color: var(--md-text-muted);">背景音</div>
+            <div id="ambient-group" class="flex items-stretch gap-1.5 h-11">
+              <button type="button" data-ambient="rain"
+                      class="ambient-chip m3-Interactive font-bold text-xs sm:text-sm flex items-center justify-center border"
+                      style="flex: 1 1 0%; border-radius: 14px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+                <span>雨天</span>
+              </button>
+              <button type="button" data-ambient="fireplace"
+                      class="ambient-chip m3-Interactive font-bold text-xs sm:text-sm flex items-center justify-center border"
+                      style="flex: 1 1 0%; border-radius: 14px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+                <span>壁炉</span>
+              </button>
+              <button type="button" data-ambient="waves"
+                      class="ambient-chip m3-Interactive font-bold text-xs sm:text-sm flex items-center justify-center border"
+                      style="flex: 1 1 0%; border-radius: 14px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+                <span>海浪</span>
+              </button>
+              <button type="button" data-ambient="forest"
+                      class="ambient-chip m3-Interactive font-bold text-xs sm:text-sm flex items-center justify-center border"
+                      style="flex: 1 1 0%; border-radius: 14px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+                <span>森林</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- LAYER 3: Pixel 手机同款音量调 -->
+          <div>
+            <div class="flex items-center justify-between text-xs font-extrabold tracking-wide mb-2" style="color: var(--md-text-muted);">
+              <span>音量</span>
+              <span id="pixel-volume-label" class="clock-digits">75%</span>
+            </div>
+            <div id="pixel-volume-slider"
+                 role="slider"
+                 aria-valuemin="0"
+                 aria-valuemax="100"
+                 aria-valuenow="75"
+                 tabindex="0"
+                 class="relative w-full h-11 rounded-[22px] overflow-hidden cursor-pointer select-none touch-none flex items-center"
+                 style="background-color: var(--md-surface-high);">
+              <div id="pixel-volume-fill"
+                   class="h-full rounded-[22px] flex items-center justify-between px-3.5 pointer-events-none"
+                   style="width: 75%; min-width: 44px; background-color: var(--md-primary); color: var(--md-on-primary);">
+                <svg id="pixel-volume-icon" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                </svg>
+                <span class="w-1.5 h-5 rounded-full bg-current opacity-85"></span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- MAIN 3-SLOT CONTROL BAR -->
+        <div id="control-bar" class="flex items-stretch gap-3 sm:gap-4 h-16 sm:h-[68px] w-full">
+
+          <!-- LEFT SLOT: 「音乐」按钮 -->
+          <button id="music-btn" type="button"
+                  class="m3-Interactive h-full px-4 flex items-center justify-center gap-2 shadow-sm border font-bold text-base sm:text-lg"
+                  style="flex: 1 1 0%; border-radius: 34px; background-color: var(--md-secondary-container); color: var(--md-on-secondary-container); border-color: var(--md-outline);">
+            <svg class="w-5 h-5 shrink-0 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+            <span class="whitespace-nowrap">音乐</span>
+            <div id="music-eq" class="hidden items-end gap-0.5 h-4 ml-0.5 pointer-events-none">
+              <span class="eq-1 w-0.5 bg-current rounded-full h-2"></span>
+              <span class="eq-2 w-0.5 bg-current rounded-full h-3"></span>
+              <span class="eq-3 w-0.5 bg-current rounded-full h-1.5"></span>
+            </div>
+          </button>
+
+          <!-- CENTER SLOT: 「开始」按钮 -->
+          <button id="start-btn" type="button"
+                  class="m3-Interactive h-full px-4 flex items-center justify-center gap-2 shadow-md font-extrabold text-base sm:text-lg tracking-wide"
+                  style="flex: 1 1 0%; border-radius: 34px; background-color: var(--md-primary); color: var(--md-on-primary);">
+            <svg id="start-btn-icon" class="w-5 h-5 shrink-0 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="6 3 20 12 6 21 6 3" fill="currentColor"></polygon>
+            </svg>
+            <span id="start-btn-label" class="whitespace-nowrap">开始</span>
+          </button>
+
+          <!-- RIGHT SLOT: 「重置」 + 「任务」 -->
+          <div id="right-split-slot" class="h-full flex items-stretch gap-1.5" style="flex: 1 1 0%;">
+            <button id="reset-btn" type="button"
+                    class="m3-Interactive h-full px-2 flex items-center justify-center gap-1 shadow-sm border font-bold text-sm sm:text-base whitespace-nowrap"
+                    style="flex: 1 1 0%; border-radius: 28px 14px 14px 28px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+              <svg class="w-4 h-4 shrink-0 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+              </svg>
+              <span class="whitespace-nowrap">重置</span>
+            </button>
+
+            <button id="add-task-top-btn" type="button"
+                    class="m3-Interactive h-full px-2 flex items-center justify-center gap-1 shadow-sm border font-bold text-sm sm:text-base whitespace-nowrap"
+                    style="flex: 1 1 0%; border-radius: 14px 28px 28px 14px; background-color: var(--md-tertiary-container); color: var(--md-on-tertiary-container); border-color: var(--md-outline);">
+              <svg class="w-4 h-4 shrink-0 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 5v14"></path>
+                <path d="M5 12h14"></path>
+              </svg>
+              <span class="whitespace-nowrap">任务</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ======================================================================= -->
+    <!-- RIGHT SCREEN (6 cols): SECONDARY AREA (「今日任务」 & 「专注概览」)      -->
+    <!-- ======================================================================= -->
+    <section class="lg:col-span-6 h-full flex flex-col justify-center gap-5 min-h-0 py-2">
+
+      <!-- MODULE 1: 「今日任务」模块 -->
+      <div id="today-tasks-section"
+           class="rounded-[36px] p-6 sm:p-7 border flex flex-col max-h-[44vh] min-h-[210px]"
+           style="background-color: var(--md-surface-card); border-color: var(--md-outline); box-shadow: 0 14px 32px -12px var(--md-shadow);">
+        <div class="flex items-center gap-2.5 mb-3 shrink-0">
+          <span class="w-3 h-7 rounded-full m3-SurfaceTransition" style="background-color: var(--md-primary);"></span>
+          <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">今日任务</h2>
+        </div>
+
+        <div id="task-list-container" class="divide-y overflow-y-auto pr-1 flex-1" style="border-color: var(--md-outline);">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- MODULE 2: 「专注概览」模块 -->
+      <div id="focus-overview-section"
+           class="rounded-[36px] p-6 sm:p-7 border shrink-0"
+           style="background-color: var(--md-surface-card); border-color: var(--md-outline); box-shadow: 0 14px 32px -12px var(--md-shadow);">
+        <div class="flex items-center gap-2.5 mb-5">
+          <span class="w-3 h-7 rounded-full m3-SurfaceTransition" style="background-color: var(--md-primary);"></span>
+          <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">专注概览</h2>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+          <!-- Card 1: 专注次数 -->
+          <div id="overview-card-sessions"
+               class="p-5 rounded-[28px] flex flex-col justify-between relative overflow-hidden m3-Interactive"
+               style="background-color: var(--md-primary-container); color: var(--md-on-primary-container);">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-lg sm:text-xl font-extrabold tracking-tight">专注次数</span>
+              <div class="w-9 h-9 rounded-2xl flex items-center justify-center bg-white/35 shrink-0">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2v4"></path>
+                  <path d="M12 18v4"></path>
+                  <path d="M4.93 4.93l2.83 2.83"></path>
+                  <path d="M16.24 16.24l2.83 2.83"></path>
+                  <path d="M2 12h4"></path>
+                  <path d="M18 12h4"></path>
+                  <circle cx="12" cy="12" r="4"></circle>
+                </svg>
+              </div>
+            </div>
+            <div class="mt-4 flex items-baseline gap-1.5">
+              <span id="stat-completed-sessions" class="clock-digits text-4xl sm:text-5xl font-extrabold">0</span>
+              <span class="text-sm font-extrabold opacity-85">次</span>
+            </div>
+          </div>
+
+          <!-- Card 2: 专注时长 -->
+          <div id="overview-card-minutes"
+               class="p-5 rounded-[28px] flex flex-col justify-between relative overflow-hidden m3-Interactive"
+               style="background-color: var(--md-secondary-container); color: var(--md-on-secondary-container);">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-lg sm:text-xl font-extrabold tracking-tight">专注时长</span>
+              <div class="w-9 h-9 rounded-2xl flex items-center justify-center bg-white/35 shrink-0">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+            </div>
+            <div class="mt-4 flex items-baseline gap-1.5">
+              <span id="stat-focus-minutes" class="clock-digits text-4xl sm:text-5xl font-extrabold">0</span>
+              <span class="text-sm font-extrabold opacity-85">分钟</span>
+            </div>
+          </div>
+
+          <!-- Card 3: 完成任务 -->
+          <div id="overview-card-tasks"
+               class="p-5 rounded-[28px] flex flex-col justify-between relative overflow-hidden m3-Interactive"
+               style="background-color: var(--md-tertiary-container); color: var(--md-on-tertiary-container);">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-lg sm:text-xl font-extrabold tracking-tight">完成任务</span>
+              <div class="w-9 h-9 rounded-2xl flex items-center justify-center bg-white/35 shrink-0">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+            </div>
+            <div class="mt-4 flex items-baseline gap-1.5">
+              <span id="stat-completed-tasks" class="clock-digits text-4xl sm:text-5xl font-extrabold">0</span>
+              <span class="text-sm font-extrabold opacity-85">次</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 1: 自定义「专注」时间弹窗                                             -->
+  <!-- ========================================================================= -->
+  <div id="custom-duration-modal"
+       class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div id="custom-duration-dialog"
+         class="w-full max-w-sm rounded-[32px] p-6 shadow-2xl border"
+         style="background-color: var(--md-surface-card); border-color: var(--md-outline);">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-extrabold">自定义时间</h3>
+        <button id="close-duration-modal" type="button"
+                class="w-9 h-9 rounded-2xl flex items-center justify-center m3-Interactive"
+                style="background-color: var(--md-surface); color: var(--md-text-main);">
+          ✕
+        </button>
+      </div>
+
+      <div id="duration-preset-group" class="flex items-stretch gap-2 mb-5 h-11">
+        <button type="button" data-preset-min="25"
+                class="duration-preset-btn text-sm font-bold border m3-Interactive flex items-center justify-center"
+                style="flex: 1 1 0%; border-radius: 16px; background-color: var(--md-primary-container); color: var(--md-on-primary-container); border-color: var(--md-outline);">
+          25
+        </button>
+        <button type="button" data-preset-min="35"
+                class="duration-preset-btn text-sm font-bold border m3-Interactive flex items-center justify-center"
+                style="flex: 1 1 0%; border-radius: 16px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+          35
+        </button>
+        <button type="button" data-preset-min="45"
+                class="duration-preset-btn text-sm font-bold border m3-Interactive flex items-center justify-center"
+                style="flex: 1 1 0%; border-radius: 16px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+          45
+        </button>
+        <button type="button" data-preset-min="60"
+                class="duration-preset-btn text-sm font-bold border m3-Interactive flex items-center justify-center"
+                style="flex: 1 1 0%; border-radius: 16px; background-color: var(--md-surface); color: var(--md-text-main); border-color: var(--md-outline);">
+          60
+        </button>
+      </div>
+
+      <div class="mb-6">
+        <label for="custom-focus-input" class="block text-xs font-bold mb-1.5" style="color: var(--md-text-muted);">
+          自定义分钟数
+        </label>
+        <input id="custom-focus-input" type="number" min="1" max="180" value="25"
+               class="m3-Input w-full px-4 py-3 rounded-2xl text-lg font-extrabold border focus:outline-none"
+               style="background-color: var(--md-bg); border-color: var(--md-outline); color: var(--md-text-main);" />
+      </div>
+
+      <div class="flex items-center justify-end gap-2.5">
+        <button id="cancel-duration-btn" type="button"
+                class="px-5 py-2.5 rounded-2xl text-xs font-bold m3-Interactive"
+                style="background-color: var(--md-surface); color: var(--md-text-muted);">
+          取消
+        </button>
+        <button id="save-duration-btn" type="button"
+                class="px-6 py-2.5 rounded-2xl text-xs font-bold shadow-sm m3-Interactive"
+                style="background-color: var(--md-primary); color: var(--md-on-primary);">
+          确定
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 2: 单击「任务」按钮弹出的添加任务弹窗                                 -->
+  <!-- ========================================================================= -->
+  <div id="add-task-modal"
+       class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div id="add-task-dialog"
+         class="w-full max-w-md rounded-[32px] p-6 shadow-2xl border"
+         style="background-color: var(--md-surface-card); border-color: var(--md-outline);">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-extrabold">添加任务</h3>
+        <button id="close-task-modal" type="button"
+                class="w-9 h-9 rounded-2xl flex items-center justify-center m3-Interactive"
+                style="background-color: var(--md-surface); color: var(--md-text-main);">
+          ✕
+        </button>
+      </div>
+
+      <form id="modal-task-form" class="space-y-4">
+        <div>
+          <label for="modal-task-title" class="block text-xs font-bold mb-1.5" style="color: var(--md-text-muted);">
+            任务名称
+          </label>
+          <input id="modal-task-title" type="text" required
+                 class="m3-Input w-full px-4 py-3 rounded-2xl text-sm font-semibold border focus:outline-none"
+                 style="background-color: var(--md-bg); border-color: var(--md-outline); color: var(--md-text-main);" />
+        </div>
+
+        <div>
+          <label for="modal-task-focused" class="block text-xs font-bold mb-1.5" style="color: var(--md-text-muted);">
+            专注时间 (分钟)
+          </label>
+          <input id="modal-task-focused" type="number" min="5" max="600" step="5" value="25"
+                 class="m3-Input w-full px-4 py-2.5 rounded-2xl text-sm font-bold border focus:outline-none"
+                 style="background-color: var(--md-bg); border-color: var(--md-outline); color: var(--md-text-main);" />
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2">
+          <button id="cancel-task-modal-btn" type="button"
+                  class="px-5 py-2.5 rounded-2xl text-xs font-bold m3-Interactive"
+                  style="background-color: var(--md-surface); color: var(--md-text-muted);">
+            取消
+          </button>
+          <button id="submit-task-modal-btn" type="submit"
+                  class="px-6 py-2.5 rounded-2xl text-xs font-bold shadow-sm m3-Interactive"
+                  style="background-color: var(--md-primary); color: var(--md-on-primary);">
+            添加
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dual Audio Decks for Smooth Crossfading Between Full-Length Pixabay Music Streams -->
+  <audio id="lofi-online-audio" preload="auto"></audio>
+  <audio id="station-deck-b" preload="auto"></audio>
+
+  <script>
+    // =========================================================================
+    // 1. UNIFIED MATERIAL 3 EXPRESSIVE PHYSICS SPRING ENGINE
+    // =========================================================================
+    class SpringValue {
+      constructor(initial, stiffness = 0.22, damping = 0.72) {
+        this.current = initial;
+        this.target = initial;
+        this.velocity = 0;
+        this.stiffness = stiffness;
+        this.damping = damping;
+      }
+      setTarget(t, impulse = 0) {
+        this.target = t;
+        this.velocity += impulse;
+      }
+      step() {
+        const force = (this.target - this.current) * this.stiffness;
+        this.velocity = (this.velocity + force) * this.damping;
+        this.current += this.velocity;
+        if (Math.abs(this.target - this.current) < 0.001 && Math.abs(this.velocity) < 0.001) {
+          this.current = this.target;
+          this.velocity = 0;
+          return false;
+        }
+        return true;
+      }
+    }
+
+    const springElements = new Map();
+    let springLoopRunning = false;
+
+    function registerSpringElement(el, config = {}) {
+      if (!el) return null;
+      if (springElements.has(el)) return springElements.get(el);
+      const defaultR = config.radii || [16, 16, 16, 16];
+      const item = {
+        el,
+        flex: new SpringValue(config.flex ?? 1, 0.22, 0.74),
+        scaleX: new SpringValue(1, 0.26, 0.70),
+        scaleY: new SpringValue(1, 0.26, 0.70),
+        tx: new SpringValue(0, 0.22, 0.72),
+        ty: new SpringValue(0, 0.22, 0.72),
+        rTL: new SpringValue(defaultR[0], 0.22, 0.74),
+        rTR: new SpringValue(defaultR[1], 0.22, 0.74),
+        rBR: new SpringValue(defaultR[2], 0.22, 0.74),
+        rBL: new SpringValue(defaultR[3], 0.22, 0.74),
+        baseRadii: [...defaultR],
+        hoverRadii: config.hoverRadii || defaultR.map(r => Math.min(34, r + 4)),
+        activeRadii: config.activeRadii || defaultR.map(r => Math.max(10, r - 4)),
+        useFlex: config.useFlex ?? false,
+        preserveCenterTranslate: config.preserveCenterTranslate ?? false
+      };
+      springElements.set(el, item);
+      applySpringStyles(item);
+
+      if (config.autoBind !== false) {
+        bindGenericM3SpringEvents(el, item, config);
+      }
+      return item;
+    }
+
+    function applySpringStyles(item) {
+      const r0 = Math.max(8, item.rTL.current).toFixed(2);
+      const r1 = Math.max(8, item.rTR.current).toFixed(2);
+      const r2 = Math.max(8, item.rBR.current).toFixed(2);
+      const r3 = Math.max(8, item.rBL.current).toFixed(2);
+      item.el.style.borderRadius = `${r0}px ${r1}px ${r2}px ${r3}px`;
+
+      const sx = item.scaleX.current.toFixed(4);
+      const sy = item.scaleY.current.toFixed(4);
+      const tx = item.tx.current.toFixed(2);
+      const ty = item.ty.current.toFixed(2);
+      if (item.preserveCenterTranslate) {
+        item.el.style.transform = `translate3d(calc(-50% + ${tx}px), ${ty}px, 0) scale(${sx}, ${sy})`;
+      } else {
+        item.el.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${sx}, ${sy})`;
+      }
+
+      if (item.useFlex) {
+        item.el.style.flexGrow = Math.max(0.65, item.flex.current).toFixed(4);
+      }
+    }
+
+    function bindGenericM3SpringEvents(el, item, config) {
+      const hoverScale = config.hoverScale ?? 1.04;
+      const activeScaleX = config.activeScaleX ?? 1.06;
+      const activeScaleY = config.activeScaleY ?? 0.92;
+      const magStrength = config.magnetic ?? 0.08;
+
+      el.addEventListener('pointerenter', () => {
+        item.scaleX.setTarget(hoverScale);
+        item.scaleY.setTarget(hoverScale);
+        item.rTL.setTarget(item.hoverRadii[0]);
+        item.rTR.setTarget(item.hoverRadii[1]);
+        item.rBR.setTarget(item.hoverRadii[2]);
+        item.rBL.setTarget(item.hoverRadii[3]);
+        wakeSpringLoop();
+      });
+
+      el.addEventListener('pointerleave', () => {
+        item.scaleX.setTarget(1);
+        item.scaleY.setTarget(1);
+        item.tx.setTarget(0);
+        item.ty.setTarget(0);
+        item.rTL.setTarget(item.baseRadii[0]);
+        item.rTR.setTarget(item.baseRadii[1]);
+        item.rBR.setTarget(item.baseRadii[2]);
+        item.rBL.setTarget(item.baseRadii[3]);
+        wakeSpringLoop();
+      });
+
+      el.addEventListener('pointerdown', () => {
+        item.scaleX.setTarget(activeScaleX, 0.03);
+        item.scaleY.setTarget(activeScaleY, -0.04);
+        item.rTL.setTarget(item.activeRadii[0]);
+        item.rTR.setTarget(item.activeRadii[1]);
+        item.rBR.setTarget(item.activeRadii[2]);
+        item.rBL.setTarget(item.activeRadii[3]);
+        wakeSpringLoop();
+      });
+
+      el.addEventListener('pointerup', () => {
+        item.scaleX.setTarget(hoverScale, 0.02);
+        item.scaleY.setTarget(hoverScale, 0.03);
+        item.rTL.setTarget(item.hoverRadii[0]);
+        item.rTR.setTarget(item.hoverRadii[1]);
+        item.rBR.setTarget(item.hoverRadii[2]);
+        item.rBL.setTarget(item.hoverRadii[3]);
+        wakeSpringLoop();
+      });
+
+      if (magStrength > 0) {
+        el.addEventListener('pointermove', (e) => {
+          const rect = el.getBoundingClientRect();
+          const dx = (e.clientX - (rect.left + rect.width / 2)) * magStrength;
+          const dy = (e.clientY - (rect.top + rect.height / 2)) * magStrength;
+          item.tx.setTarget(dx);
+          item.ty.setTarget(dy);
+          wakeSpringLoop();
+        });
+      }
+    }
+
+    function pulseElementSpring(el, impulseX = 0.08, impulseY = 0.08) {
+      const item = springElements.get(el);
+      if (!item) return;
+      item.scaleX.velocity += impulseX;
+      item.scaleY.velocity += impulseY;
+      wakeSpringLoop();
+    }
+
+    function wakeSpringLoop() {
+      if (springLoopRunning) return;
+      springLoopRunning = true;
+      function tick() {
+        let anyActive = false;
+        springElements.forEach(item => {
+          const a1 = item.flex.step();
+          const a2 = item.scaleX.step();
+          const a3 = item.scaleY.step();
+          const a4 = item.tx.step();
+          const a5 = item.ty.step();
+          const a6 = item.rTL.step();
+          const a7 = item.rTR.step();
+          const a8 = item.rBR.step();
+          const a9 = item.rBL.step();
+          applySpringStyles(item);
+          if (a1 || a2 || a3 || a4 || a5 || a6 || a7 || a8 || a9) {
+            anyActive = true;
+          }
+        });
+        if (anyActive) {
+          requestAnimationFrame(tick);
+        } else {
+          springLoopRunning = false;
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // =========================================================================
+    // 2. TOP-RIGHT M3 EXPRESSIVE THEME SWITCH & ZERO-FLICKER TOKEN CACHE (#3)
+    // =========================================================================
+    // Cached theme palette tokens so requestAnimationFrame never triggers
+    // synchronous getComputedStyle(document.body) layout thrashing or mid-frame jumps
+    const THEME_TOKEN_TABLE = {
+      light: {
+        focus:      { off: [216, 194, 190], on: [179, 38, 30],  primary: '#B3261E', track: '#F2D3CD' },
+        shortBreak: { off: [180, 210, 199], on: [0, 107, 88],   primary: '#006B58', track: '#CBE6DC' },
+        longBreak:  { off: [200, 196, 220], on: [87, 84, 168],  primary: '#5754A8', track: '#DCD8EE' }
+      },
+      dark: {
+        focus:      { off: [78, 61, 58],    on: [224, 102, 90], primary: '#FFB4A8', track: '#362624' },
+        shortBreak: { off: [56, 73, 68],    on: [46, 158, 133], primary: '#85D6C0', track: '#22332E' },
+        longBreak:  { off: [67, 66, 84],    on: [118, 114, 212],primary: '#C3C0FF', track: '#2A293A' }
+      }
+    };
+
+    const SWITCH_GEOM = {
+      trackW: 112,
+      trackH: 64,
+      minX: 11,
+      maxX: 59,
+      baseW: 42,
+      baseH: 46,
+      baseRadius: 14,
+      scaleFactor: 0.607
+    };
+
+    const themeSwitchState = {
+      checked: false,
+      isPressed: false,
+      isDragging: false,
+      dragStartX: 0,
+      dragStartThumbX: SWITCH_GEOM.minX,
+      pointerMoved: false,
+      x: { pos: SWITCH_GEOM.minX, vel: 0, target: SWITCH_GEOM.minX },
+      w: { pos: SWITCH_GEOM.baseW, vel: 0, target: SWITCH_GEOM.baseW },
+      h: { pos: SWITCH_GEOM.baseH, vel: 0, target: SWITCH_GEOM.baseH },
+      r: { pos: SWITCH_GEOM.baseRadius, vel: 0, target: SWITCH_GEOM.baseRadius },
+      haloScale: { pos: 0.5, vel: 0, target: 0.5 }
+    };
+
+    const themeSwitchEl = document.getElementById('themeSwitch');
+    const themeTrackEl = document.getElementById('themeTrack');
+    const themeThumbEl = document.getElementById('themeThumb');
+    const themeHaloEl = document.getElementById('themeHalo');
+    const themeThumbSvg = document.getElementById('themeThumbSvg');
+    const themeSunGroup = document.getElementById('themeSunGroup');
+    const themeMoonGroup = document.getElementById('themeMoonGroup');
+
+    function updateThemeSwitchTargets() {
+      if (!themeSwitchState.isDragging) {
+        themeSwitchState.x.target = themeSwitchState.checked ? SWITCH_GEOM.maxX : SWITCH_GEOM.minX;
+      }
+      if (themeSwitchState.isPressed) {
+        themeSwitchState.w.target = SWITCH_GEOM.baseW + 10;
+        themeSwitchState.h.target = SWITCH_GEOM.baseH + 2;
+        themeSwitchState.haloScale.target = 1.05;
+      } else {
+        themeSwitchState.w.target = SWITCH_GEOM.baseW;
+        themeSwitchState.h.target = SWITCH_GEOM.baseH;
+        themeSwitchState.haloScale.target = 0.5;
+      }
+      themeSwitchState.r.target = themeSwitchState.checked ? 18 : 14;
+      themeSwitchEl.setAttribute('aria-checked', String(themeSwitchState.checked));
+      // Only mutate DOM class when state actually differs to prevent redundant style invalidation (#3)
+      if (document.body.classList.contains('dark-mode') !== themeSwitchState.checked) {
+        document.body.classList.toggle('dark-mode', themeSwitchState.checked);
+      }
+    }
+
+    // Google Sound Library Light Switch Sound Effect — Frame-Synchronized with Switch Animation (#3)
+    const GOOGLE_LIGHT_SWITCH_SOUNDS = [
+      'https://actions.google.com/sounds/v1/household/lamp_switch_near.ogg',
+      'https://actions.google.com/sounds/v1/household/lamp_switch_on_off.ogg',
+      'https://actions.google.com/sounds/v1/office/button_push.ogg'
+    ];
+    let decodedSwitchBuffer = null;
+    let decodedSwitchTransientOffset = 0;
+
+    const preloadedSwitchAudios = GOOGLE_LIGHT_SWITCH_SOUNDS.map(url => {
+      const a = new Audio();
+      a.preload = 'auto';
+      a.src = url;
+      a.load();
+      return a;
+    });
+
+    // Scan decoded PCM samples to find the exact millisecond where the mechanical switch click starts,
+    // stripping any leading room-tone silence so the sound and thumb animation happen simultaneously!
+    function detectClickTransientOffset(audioBuffer) {
+      try {
+        const data = audioBuffer.getChannelData(0);
+        const sr = audioBuffer.sampleRate;
+        let peak = 0;
+        for (let i = 0; i < data.length; i++) {
+          const absVal = Math.abs(data[i]);
+          if (absVal > peak) peak = absVal;
+        }
+        if (peak <= 0) return 0;
+        const threshold = peak * 0.16;
+        for (let i = 0; i < data.length; i++) {
+          if (Math.abs(data[i]) >= threshold) {
+            return Math.max(0, (i / sr) - 0.002);
+          }
+        }
+      } catch (e) {}
+      return 0;
+    }
+
+    (async function preloadAndDecodeSwitchSound() {
+      for (const url of GOOGLE_LIGHT_SWITCH_SOUNDS) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const buf = await res.arrayBuffer();
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) break;
+          const tempCtx = new AudioContextClass();
+          const decoded = await tempCtx.decodeAudioData(buf);
+          decodedSwitchBuffer = decoded;
+          decodedSwitchTransientOffset = detectClickTransientOffset(decoded);
+          tempCtx.close().catch(() => {});
+          break;
+        } catch (e) {}
+      }
+    })();
+
+    function playLightSwitchSound(isDarkModeNow) {
+      const targetVol = Math.min(1, Math.max(0.50, state.masterVolume * 0.95));
+      try {
+        ensureAudioCtx();
+        if (audioCtx && decodedSwitchBuffer) {
+          const src = audioCtx.createBufferSource();
+          const gainNode = audioCtx.createGain();
+          src.buffer = decodedSwitchBuffer;
+          src.playbackRate.value = isDarkModeNow ? 0.95 : 1.05;
+          gainNode.gain.value = targetVol * 2.4;
+          src.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          // Start immediately at the exact mechanical transient offset (0ms latency!)
+          const maxDur = Math.max(0.18, decodedSwitchBuffer.duration - decodedSwitchTransientOffset);
+          src.start(0, decodedSwitchTransientOffset, Math.min(0.38, maxDur));
+          return;
+        }
+      } catch (e) {}
+
+      // Fallback direct HTML5 Audio playback from Google Sound Library
+      let played = false;
+      function trySwitchUrl(idx) {
+        if (idx >= GOOGLE_LIGHT_SWITCH_SOUNDS.length || played) return;
+        const baseAudio = preloadedSwitchAudios[idx];
+        const sfx = baseAudio ? baseAudio.cloneNode() : new Audio(GOOGLE_LIGHT_SWITCH_SOUNDS[idx]);
+        sfx.volume = targetVol;
+        sfx.playbackRate = isDarkModeNow ? 0.95 : 1.05;
+        const p = sfx.play();
+        if (p !== undefined) {
+          p.then(() => { played = true; }).catch(() => trySwitchUrl(idx + 1));
+        }
+      }
+      trySwitchUrl(0);
+    }
+
+    themeSwitchEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      // Pre-warm AudioContext on pointerdown so pointerup sound has 0ms initialization latency
+      ensureAudioCtx();
+      themeSwitchEl.setPointerCapture(e.pointerId);
+      themeSwitchState.isPressed = true;
+      themeSwitchState.isDragging = false;
+      themeSwitchState.pointerMoved = false;
+      themeSwitchState.dragStartX = e.clientX;
+      themeSwitchState.dragStartThumbX = themeSwitchState.x.pos;
+      updateThemeSwitchTargets();
+    });
+
+    themeSwitchEl.addEventListener('pointermove', (e) => {
+      if (!themeSwitchState.isPressed) return;
+      const dxScreen = e.clientX - themeSwitchState.dragStartX;
+      const dxLocal = dxScreen / SWITCH_GEOM.scaleFactor;
+      if (Math.abs(dxScreen) > 4) {
+        themeSwitchState.isDragging = true;
+        themeSwitchState.pointerMoved = true;
+      }
+      if (themeSwitchState.isDragging) {
+        let rawX = themeSwitchState.dragStartThumbX + dxLocal;
+        if (rawX < SWITCH_GEOM.minX) {
+          rawX = SWITCH_GEOM.minX - Math.pow(SWITCH_GEOM.minX - rawX, 0.65) * 0.8;
+        } else if (rawX > SWITCH_GEOM.maxX) {
+          rawX = SWITCH_GEOM.maxX + Math.pow(rawX - SWITCH_GEOM.maxX, 0.65) * 0.8;
+        }
+        themeSwitchState.x.target = rawX;
+        updateThemeSwitchTargets();
+      }
+    });
+
+    function handleThemeSwitchRelease() {
+      if (!themeSwitchState.isPressed) return;
+      themeSwitchState.isPressed = false;
+      const prevChecked = themeSwitchState.checked;
+      if (themeSwitchState.pointerMoved) {
+        const midPoint = (SWITCH_GEOM.minX + SWITCH_GEOM.maxX) / 2;
+        const projectedX = themeSwitchState.x.pos + themeSwitchState.x.vel * 0.04;
+        themeSwitchState.checked = projectedX >= midPoint;
+      } else {
+        themeSwitchState.checked = !themeSwitchState.checked;
+        themeSwitchState.w.vel += 140;
+      }
+      themeSwitchState.isDragging = false;
+      themeSwitchState.pointerMoved = false;
+      if (themeSwitchState.checked !== prevChecked || !themeSwitchState.pointerMoved) {
+        playLightSwitchSound(themeSwitchState.checked);
+      }
+      updateThemeSwitchTargets();
+      saveDailyDataToStorage();
+    }
+
+    themeSwitchEl.addEventListener('pointerup', handleThemeSwitchRelease);
+    themeSwitchEl.addEventListener('pointercancel', handleThemeSwitchRelease);
+    themeSwitchEl.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        themeSwitchState.checked = !themeSwitchState.checked;
+        themeSwitchState.w.vel += 140;
+        playLightSwitchSound(themeSwitchState.checked);
+        updateThemeSwitchTargets();
+        saveDailyDataToStorage();
+      }
+    });
+
+    function stepChannel(ch, k, c, dt) {
+      const displacement = ch.pos - ch.target;
+      const accel = (-k * displacement) - (c * ch.vel);
+      ch.vel += accel * dt;
+      ch.pos += ch.vel * dt;
+    }
+
+    function lerpRgb(a, b, t) {
+      const c = Math.max(0, Math.min(1, t));
+      return `rgb(${Math.round(a[0] + (b[0] - a[0]) * c)}, ${Math.round(a[1] + (b[1] - a[1]) * c)}, ${Math.round(a[2] + (b[2] - a[2]) * c)})`;
+    }
+
+    // =========================================================================
+    // 3. POMODORO APP STATE, PIXABAY MUSIC RANDOM POOL & DAILY PERSISTENCE
+    // =========================================================================
+    const RING_CIRCUMFERENCE = 2 * Math.PI * 112;
+    const DAILY_STORAGE_KEY = 'pomodoflow_daily_tasks_v3';
+
+    function getTodayDateString() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // Cryptographically-seeded random integer helper
+    function randomInt(maxExclusive) {
+      if (maxExclusive <= 1) return 0;
+      if (window.crypto && window.crypto.getRandomValues) {
+        const arr = new Uint32Array(1);
+        window.crypto.getRandomValues(arr);
+        return arr[0] % maxExclusive;
+      }
+      return Math.floor(Math.random() * maxExclusive);
+    }
+
+    function shuffleArrayInPlace(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    const state = {
+      currentDateKey: getTodayDateString(),
+      mode: 'focus', // 'focus' | 'shortBreak' | 'longBreak'
+      durations: {
+        focus: 25,
+        shortBreak: 5,
+        longBreak: 15
+      },
+      timeLeftSeconds: 25 * 60,
+      totalSecondsForSession: 25 * 60,
+      timerEndTimestamp: null,
+      isRunning: false,
+      timerInterval: null,
+
+      completedFocusSessions: 0,
+      completedFocusMinutes: 0,
+      tasks: [],
+
+      // Music & Ambient State (100% Real-Time Open Network Discovery — No Built-in Fixed Playlist)
+      musicPopoverOpen: false,
+      stationPlaying: false,
+      stationProgress: 0, // 0..1
+      wavyPhase: 0,
+      wavyAmp: 0,
+      masterVolume: 0.75, // 0..1
+      activeAmbients: new Set(),
+      onlineTracks: [],
+      currentTrackIndex: 0,
+      unplayedShuffleBag: [],
+      playedTrackUrls: new Set(),
+      discoveredTrackUrls: new Set(),
+      isFetchingLiveMusic: false
+    };
+
+    function getThemeTokens() {
+      const scheme = themeSwitchState.checked ? THEME_TOKEN_TABLE.dark : THEME_TOKEN_TABLE.light;
+      return scheme[state.mode] || scheme.focus;
+    }
+
+    let lastSwitchFrameTime = performance.now();
+    function animateThemeSwitch(now) {
+      let dt = (now - lastSwitchFrameTime) / 1000;
+      lastSwitchFrameTime = now;
+      if (dt > 0.05) dt = 0.016;
+
+      const steps = 3;
+      const subDt = dt / steps;
+      const k = 380;
+      const c = 18;
+
+      for (let i = 0; i < steps; i++) {
+        if (themeSwitchState.isDragging) {
+          stepChannel(themeSwitchState.x, 900, 48, subDt);
+        } else {
+          stepChannel(themeSwitchState.x, k, c, subDt);
+        }
+        stepChannel(themeSwitchState.w, k * 1.15, c * 1.05, subDt);
+        stepChannel(themeSwitchState.h, k * 1.15, c * 1.05, subDt);
+        stepChannel(themeSwitchState.r, k * 0.9, c * 1.1, subDt);
+        stepChannel(themeSwitchState.haloScale, 420, 26, subDt);
+      }
+
+      const velocityStretch = Math.min(18, Math.abs(themeSwitchState.x.vel) * 0.022);
+      const effectiveW = themeSwitchState.w.pos + velocityStretch;
+      const effectiveH = Math.max(38, themeSwitchState.h.pos - velocityStretch * 0.18);
+
+      const widthDelta = effectiveW - SWITCH_GEOM.baseW;
+      const progress = (themeSwitchState.x.pos - SWITCH_GEOM.minX) / (SWITCH_GEOM.maxX - SWITCH_GEOM.minX);
+      const clampedProg = Math.max(0, Math.min(1, progress));
+      const visualX = themeSwitchState.x.pos - widthDelta * clampedProg;
+
+      // Interpolate switch track smoothly between light-off RGB and dark-on RGB without sudden jumps
+      const lightTokens = THEME_TOKEN_TABLE.light[state.mode] || THEME_TOKEN_TABLE.light.focus;
+      const darkTokens = THEME_TOKEN_TABLE.dark[state.mode] || THEME_TOKEN_TABLE.dark.focus;
+      themeTrackEl.style.backgroundColor = lerpRgb(lightTokens.off, darkTokens.on, clampedProg);
+
+      themeThumbEl.style.width = `${effectiveW.toFixed(2)}px`;
+      themeThumbEl.style.height = `${effectiveH.toFixed(2)}px`;
+      themeThumbEl.style.borderRadius = `${Math.max(10, themeSwitchState.r.pos).toFixed(2)}px`;
+      themeThumbEl.style.transform = `translate3d(${visualX.toFixed(2)}px, -50%, 0)`;
+
+      const thumbCenterX = visualX + effectiveW / 2 - 38;
+      themeHaloEl.style.transform = `translate3d(${thumbCenterX.toFixed(2)}px, -50%, 0) scale(${themeSwitchState.haloScale.pos.toFixed(3)})`;
+      themeHaloEl.style.opacity = themeSwitchState.isPressed ? '1' : '0';
+
+      const rot = (1 - clampedProg) * -90;
+      const sc = 0.72 + 0.28 * Math.abs(clampedProg - 0.5) * 2;
+      themeThumbSvg.style.transform = `rotate(${rot.toFixed(1)}deg) scale(${sc.toFixed(2)})`;
+      if (clampedProg > 0.5) {
+        themeSunGroup.classList.add('hidden');
+        themeMoonGroup.classList.remove('hidden');
+        themeThumbSvg.style.color = lerpRgb(lightTokens.off, darkTokens.on, 0.9);
+      } else {
+        themeSunGroup.classList.remove('hidden');
+        themeMoonGroup.classList.add('hidden');
+        themeThumbSvg.style.color = '#D97706';
+      }
+
+      requestAnimationFrame(animateThemeSwitch);
+    }
+
+    // Save current day's tasks & actual completed focus stats to localStorage (#4)
+    function saveDailyDataToStorage() {
+      try {
+        const payload = {
+          dateKey: state.currentDateKey,
+          tasks: state.tasks,
+          completedFocusSessions: state.completedFocusSessions,
+          completedFocusMinutes: state.completedFocusMinutes,
+          focusDuration: state.durations.focus,
+          darkMode: themeSwitchState.checked
+        };
+        localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(payload));
+      } catch (e) {}
+    }
+
+    // Load today's tasks & stats from localStorage; auto-resets at 00:00 (#4)
+    function loadDailyDataFromStorage() {
+      const todayKey = getTodayDateString();
+      state.currentDateKey = todayKey;
+      try {
+        const raw = localStorage.getItem(DAILY_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.dateKey === todayKey) {
+          if (Array.isArray(parsed.tasks)) {
+            state.tasks = parsed.tasks;
+          }
+          if (typeof parsed.completedFocusSessions === 'number' && parsed.completedFocusSessions >= 0) {
+            state.completedFocusSessions = parsed.completedFocusSessions;
+          }
+          if (typeof parsed.completedFocusMinutes === 'number' && parsed.completedFocusMinutes >= 0) {
+            state.completedFocusMinutes = parsed.completedFocusMinutes;
+          }
+          if (typeof parsed.focusDuration === 'number' && parsed.focusDuration >= 1 && parsed.focusDuration <= 180) {
+            state.durations.focus = parsed.focusDuration;
+            state.totalSecondsForSession = parsed.focusDuration * 60;
+            state.timeLeftSeconds = parsed.focusDuration * 60;
+          }
+          if (typeof parsed.darkMode === 'boolean') {
+            themeSwitchState.checked = parsed.darkMode;
+            themeSwitchState.x.pos = parsed.darkMode ? SWITCH_GEOM.maxX : SWITCH_GEOM.minX;
+            themeSwitchState.x.target = themeSwitchState.x.pos;
+          }
+        } else {
+          state.tasks = [];
+          state.completedFocusSessions = 0;
+          state.completedFocusMinutes = 0;
+          saveDailyDataToStorage();
+        }
+      } catch (e) {}
+    }
+
+    // Live Midnight (00:00) Watcher: automatically clears tasks if 00:00 is reached while app is open
+    setInterval(() => {
+      const nowKey = getTodayDateString();
+      if (nowKey !== state.currentDateKey) {
+        state.currentDateKey = nowKey;
+        state.tasks = [];
+        state.completedFocusSessions = 0;
+        state.completedFocusMinutes = 0;
+        saveDailyDataToStorage();
+        renderTasksAndOverview('all');
+      }
+    }, 5000);
+
+    // =========================================================================
+    // 4. DOM ELEMENTS & M3 EXPRESSIVE SPRING REGISTRATION
+    // =========================================================================
+    const brandLogo = document.getElementById('brand-logo');
+    const clockCard = document.getElementById('clock-card');
+    const modeFocusBtn = document.getElementById('mode-focus-btn');
+    const modeShortBtn = document.getElementById('mode-short-btn');
+    const modeLongBtn = document.getElementById('mode-long-btn');
+    const pencilEditDurationBtn = document.getElementById('pencil-edit-duration-btn');
+
+    const progressRing = document.getElementById('progress-ring');
+    const timerDisplay = document.getElementById('timer-display');
+
+    const musicBtn = document.getElementById('music-btn');
+    const musicEq = document.getElementById('music-eq');
+    const musicPopoverCard = document.getElementById('music-popover-card');
+    const stationTrackTitle = document.getElementById('station-track-title');
+    const stationPlayPauseBtn = document.getElementById('station-play-pause-btn');
+    const stationPlayIcon = document.getElementById('station-play-icon');
+    const stationNextBtn = document.getElementById('station-next-btn');
+    const wavyProgressContainer = document.getElementById('wavy-progress-container');
+    const wavyProgressCanvas = document.getElementById('wavy-progress-canvas');
+    const pixelVolumeSlider = document.getElementById('pixel-volume-slider');
+    const pixelVolumeFill = document.getElementById('pixel-volume-fill');
+    const pixelVolumeLabel = document.getElementById('pixel-volume-label');
+    const pixelVolumeIcon = document.getElementById('pixel-volume-icon');
+
+    const startBtn = document.getElementById('start-btn');
+    const startBtnIcon = document.getElementById('start-btn-icon');
+    const startBtnLabel = document.getElementById('start-btn-label');
+    const rightSplitSlot = document.getElementById('right-split-slot');
+    const resetBtn = document.getElementById('reset-btn');
+    const addTaskTopBtn = document.getElementById('add-task-top-btn');
+
+    const taskListContainer = document.getElementById('task-list-container');
+    const statCompletedSessions = document.getElementById('stat-completed-sessions');
+    const statFocusMinutes = document.getElementById('stat-focus-minutes');
+    const statCompletedTasks = document.getElementById('stat-completed-tasks');
+    const overviewCardSessions = document.getElementById('overview-card-sessions');
+    const overviewCardMinutes = document.getElementById('overview-card-minutes');
+    const overviewCardTasks = document.getElementById('overview-card-tasks');
+
+    const customDurationModal = document.getElementById('custom-duration-modal');
+    const customDurationDialog = document.getElementById('custom-duration-dialog');
+    const customFocusInput = document.getElementById('custom-focus-input');
+    const closeDurationModal = document.getElementById('close-duration-modal');
+    const cancelDurationBtn = document.getElementById('cancel-duration-btn');
+    const saveDurationBtn = document.getElementById('save-duration-btn');
+
+    const addTaskModal = document.getElementById('add-task-modal');
+    const addTaskDialog = document.getElementById('add-task-dialog');
+    const closeTaskModal = document.getElementById('close-task-modal');
+    const cancelTaskModalBtn = document.getElementById('cancel-task-modal-btn');
+    const submitTaskModalBtn = document.getElementById('submit-task-modal-btn');
+    const modalTaskForm = document.getElementById('modal-task-form');
+    const modalTaskTitle = document.getElementById('modal-task-title');
+    const modalTaskFocused = document.getElementById('modal-task-focused');
+
+    const deckA = document.getElementById('lofi-online-audio');
+    const deckB = document.getElementById('station-deck-b');
+
+    stationTrackTitle.textContent = '正在实时检索网络纯音乐...';
+
+    // Register standalone interactive elements in M3 Expressive Spring Engine
+    registerSpringElement(brandLogo, { radii: [16, 16, 16, 16], hoverRadii: [22, 22, 22, 22], activeRadii: [12, 12, 12, 12] });
+    registerSpringElement(clockCard, { radii: [56, 56, 56, 56], hoverRadii: [64, 64, 64, 64], activeRadii: [48, 48, 48, 48], hoverScale: 1.01, activeScaleX: 1.015, activeScaleY: 0.985, magnetic: 0.02 });
+    registerSpringElement(pencilEditDurationBtn, {
+      radii: [14, 14, 14, 14],
+      hoverRadii: [18, 18, 18, 18],
+      activeRadii: [10, 10, 10, 10],
+      hoverScale: 1.12,
+      activeScaleX: 1.18,
+      activeScaleY: 0.88,
+      preserveCenterTranslate: true,
+      magnetic: 0.10
+    });
+
+    registerSpringElement(stationPlayPauseBtn, { radii: [18, 18, 18, 18], hoverRadii: [14, 14, 14, 14], activeRadii: [11, 11, 11, 11], hoverScale: 1.08 });
+    registerSpringElement(stationNextBtn, { radii: [14, 14, 14, 14], hoverRadii: [18, 18, 18, 18], activeRadii: [11, 11, 11, 11], hoverScale: 1.08 });
+
+    [overviewCardSessions, overviewCardMinutes, overviewCardTasks].forEach(card => {
+      registerSpringElement(card, {
+        radii: [28, 28, 28, 28],
+        hoverRadii: [32, 32, 32, 32],
+        activeRadii: [24, 24, 24, 24],
+        hoverScale: 1.02,
+        activeScaleX: 1.03,
+        activeScaleY: 0.97,
+        magnetic: 0.04
+      });
+    });
+
+    [closeDurationModal, closeTaskModal].forEach(btn => {
+      registerSpringElement(btn, { radii: [16, 16, 16, 16], hoverRadii: [20, 20, 20, 20], activeRadii: [12, 12, 12, 12], hoverScale: 1.1 });
+    });
+    [cancelDurationBtn, saveDurationBtn, cancelTaskModalBtn, submitTaskModalBtn].forEach(btn => {
+      registerSpringElement(btn, { radii: [16, 16, 16, 16], hoverRadii: [22, 22, 22, 22], activeRadii: [12, 12, 12, 12], hoverScale: 1.05, activeScaleX: 1.08, activeScaleY: 0.92 });
+    });
+    [customFocusInput, modalTaskTitle, modalTaskFocused].forEach(inp => {
+      const item = registerSpringElement(inp, {
+        radii: [16, 16, 16, 16],
+        hoverRadii: [20, 20, 20, 20],
+        activeRadii: [22, 22, 22, 22],
+        hoverScale: 1.012,
+        activeScaleX: 1.02,
+        activeScaleY: 0.985,
+        magnetic: 0.02
+      });
+      inp.addEventListener('focus', () => {
+        item.scaleX.setTarget(1.018, 0.02);
+        item.scaleY.setTarget(1.018, 0.02);
+        [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(22));
+        wakeSpringLoop();
+      });
+      inp.addEventListener('blur', () => {
+        item.scaleX.setTarget(1);
+        item.scaleY.setTarget(1);
+        [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(16));
+        wakeSpringLoop();
+      });
+      inp.addEventListener('input', () => {
+        item.scaleX.velocity += 0.015;
+        item.scaleY.velocity -= 0.012;
+        wakeSpringLoop();
+      });
+    });
+
+    // Connected Button Group 1: Top Mode Switcher (专注 | 短歇 | 长歇)
+    const modeBtns = [modeFocusBtn, modeShortBtn, modeLongBtn];
+    modeBtns.forEach((btn, idx) => {
+      const isFocus = idx === 0;
+      registerSpringElement(btn, {
+        flex: isFocus ? 1.14 : 0.93,
+        useFlex: true,
+        radii: isFocus ? [22, 22, 22, 22] : [16, 16, 16, 16],
+        autoBind: false
+      });
+    });
+
+    function updateModeGroupSprings(hoveredBtn = null, pressedBtn = null) {
+      modeBtns.forEach(btn => {
+        const item = springElements.get(btn);
+        const isCurrentMode = btn.getAttribute('data-mode-btn') === state.mode;
+        if (pressedBtn === btn) {
+          item.flex.setTarget(1.30, 0.03);
+          item.scaleX.setTarget(1.02, 0.02);
+          item.scaleY.setTarget(0.93, -0.03);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(14));
+        } else if (hoveredBtn === btn) {
+          item.flex.setTarget(1.22);
+          item.scaleX.setTarget(1.01);
+          item.scaleY.setTarget(0.98);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(20));
+        } else if (pressedBtn || hoveredBtn) {
+          item.flex.setTarget(0.88, -0.015);
+          item.scaleX.setTarget(0.99);
+          item.scaleY.setTarget(0.99);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(15));
+        } else {
+          item.flex.setTarget(isCurrentMode ? 1.14 : 0.93);
+          item.scaleX.setTarget(1);
+          item.scaleY.setTarget(1);
+          const rad = isCurrentMode ? 22 : 16;
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(rad));
+        }
+      });
+      wakeSpringLoop();
+    }
+
+    modeBtns.forEach(btn => {
+      btn.addEventListener('pointerenter', () => updateModeGroupSprings(btn, null));
+      btn.addEventListener('pointerleave', () => {
+        const s = springElements.get(btn);
+        s.tx.setTarget(0);
+        s.ty.setTarget(0);
+        updateModeGroupSprings(null, null);
+      });
+      btn.addEventListener('pointerdown', () => updateModeGroupSprings(btn, btn));
+      btn.addEventListener('pointerup', () => updateModeGroupSprings(btn, null));
+      btn.addEventListener('pointermove', (e) => {
+        const rect = btn.getBoundingClientRect();
+        const s = springElements.get(btn);
+        s.tx.setTarget((e.clientX - (rect.left + rect.width / 2)) * 0.07);
+        s.ty.setTarget((e.clientY - (rect.top + rect.height / 2)) * 0.10);
+        wakeSpringLoop();
+      });
+    });
+
+    // Connected Button Group 2: Modal Duration Presets (25 | 35 | 45 | 60)
+    const presetBtns = Array.from(document.querySelectorAll('.duration-preset-btn'));
+    presetBtns.forEach(btn => {
+      registerSpringElement(btn, {
+        flex: 1,
+        useFlex: true,
+        radii: [16, 16, 16, 16],
+        autoBind: false
+      });
+    });
+
+    function updatePresetGroupSprings(hoveredBtn = null, pressedBtn = null) {
+      const currentVal = parseInt(customFocusInput.value, 10);
+      presetBtns.forEach(btn => {
+        const item = springElements.get(btn);
+        const isSelected = parseInt(btn.getAttribute('data-preset-min'), 10) === currentVal;
+        if (pressedBtn === btn) {
+          item.flex.setTarget(1.28, 0.03);
+          item.scaleY.setTarget(0.92, -0.04);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(12));
+        } else if (hoveredBtn === btn) {
+          item.flex.setTarget(1.18);
+          item.scaleY.setTarget(0.98);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(20));
+        } else if (pressedBtn || hoveredBtn) {
+          item.flex.setTarget(0.92);
+          item.scaleY.setTarget(1);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(14));
+        } else {
+          item.flex.setTarget(isSelected ? 1.12 : 0.96);
+          item.scaleY.setTarget(1);
+          const rad = isSelected ? 22 : 14;
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(rad));
+        }
+      });
+      wakeSpringLoop();
+    }
+
+    presetBtns.forEach(btn => {
+      btn.addEventListener('pointerenter', () => updatePresetGroupSprings(btn, null));
+      btn.addEventListener('pointerleave', () => updatePresetGroupSprings(null, null));
+      btn.addEventListener('pointerdown', () => updatePresetGroupSprings(btn, btn));
+      btn.addEventListener('pointerup', () => updatePresetGroupSprings(btn, null));
+    });
+
+    // Connected Button Group 3: Ambient Sound Chips (雨天 | 壁炉 | 海浪 | 森林)
+    const ambientBtns = Array.from(document.querySelectorAll('.ambient-chip'));
+    ambientBtns.forEach(btn => {
+      registerSpringElement(btn, {
+        flex: 1,
+        useFlex: true,
+        radii: [14, 14, 14, 14],
+        autoBind: false
+      });
+    });
+
+    function updateAmbientGroupSprings(hoveredBtn = null, pressedBtn = null) {
+      ambientBtns.forEach(btn => {
+        const item = springElements.get(btn);
+        const key = btn.getAttribute('data-ambient');
+        const isSelected = state.activeAmbients.has(key);
+        if (pressedBtn === btn) {
+          item.flex.setTarget(1.24, 0.03);
+          item.scaleY.setTarget(0.92, -0.04);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(12));
+        } else if (hoveredBtn === btn) {
+          item.flex.setTarget(1.15);
+          item.scaleY.setTarget(0.98);
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(20));
+        } else if (pressedBtn || hoveredBtn) {
+          item.flex.setTarget(0.94);
+          item.scaleY.setTarget(1);
+          const rad = isSelected ? 22 : 14;
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(rad));
+        } else {
+          item.flex.setTarget(isSelected ? 1.08 : 0.97);
+          item.scaleY.setTarget(1);
+          const rad = isSelected ? 22 : 14;
+          [item.rTL, item.rTR, item.rBR, item.rBL].forEach(r => r.setTarget(rad));
+        }
+      });
+      wakeSpringLoop();
+    }
+
+    ambientBtns.forEach(btn => {
+      btn.addEventListener('pointerenter', () => updateAmbientGroupSprings(btn, null));
+      btn.addEventListener('pointerleave', () => updateAmbientGroupSprings(null, null));
+      btn.addEventListener('pointerdown', () => updateAmbientGroupSprings(btn, btn));
+      btn.addEventListener('pointerup', () => updateAmbientGroupSprings(btn, null));
+    });
+
+    // Connected Button Group 4: Main Bottom Control Row (音乐 | 开始 | [重置 + 任务])
+    registerSpringElement(musicBtn, { flex: 1, useFlex: true, radii: [34, 34, 34, 34], autoBind: false });
+    registerSpringElement(startBtn, { flex: 1, useFlex: true, radii: [34, 34, 34, 34], autoBind: false });
+    registerSpringElement(rightSplitSlot, { flex: 1, useFlex: true, radii: [28, 28, 28, 28], autoBind: false });
+    registerSpringElement(resetBtn, { flex: 1, useFlex: true, radii: [28, 14, 14, 28], autoBind: false });
+    registerSpringElement(addTaskTopBtn, { flex: 1, useFlex: true, radii: [14, 28, 28, 14], autoBind: false });
+
+    let activeControlHover = null;
+    let activeControlPress = null;
+
+    function updateControlRowSprings() {
+      const mItem = springElements.get(musicBtn);
+      const sItem = springElements.get(startBtn);
+      const rSlotItem = springElements.get(rightSplitSlot);
+      const rstItem = springElements.get(resetBtn);
+      const tskItem = springElements.get(addTaskTopBtn);
+
+      const startBaseR = state.isRunning ? 20 : 34;
+      const musicBaseR = (state.stationPlaying || state.activeAmbients.size > 0 || state.musicPopoverOpen) ? 20 : 34;
+
+      const activeTopSlot =
+        (activeControlPress === musicBtn || activeControlHover === musicBtn) ? 'music' :
+        (activeControlPress === startBtn || activeControlHover === startBtn) ? 'start' :
+        (activeControlPress === resetBtn || activeControlPress === addTaskTopBtn ||
+         activeControlHover === resetBtn || activeControlHover === addTaskTopBtn) ? 'right' : null;
+
+      const isPressingTop = Boolean(activeControlPress);
+
+      if (activeTopSlot === 'music') {
+        mItem.flex.setTarget(isPressingTop ? 1.16 : 1.10, isPressingTop ? 0.025 : 0);
+        sItem.flex.setTarget(isPressingTop ? 0.92 : 0.95);
+        rSlotItem.flex.setTarget(isPressingTop ? 0.92 : 0.95);
+      } else if (activeTopSlot === 'start') {
+        mItem.flex.setTarget(isPressingTop ? 0.92 : 0.95);
+        sItem.flex.setTarget(isPressingTop ? 1.18 : 1.10, isPressingTop ? 0.03 : 0);
+        rSlotItem.flex.setTarget(isPressingTop ? 0.90 : 0.95);
+      } else if (activeTopSlot === 'right') {
+        mItem.flex.setTarget(isPressingTop ? 0.92 : 0.95);
+        sItem.flex.setTarget(isPressingTop ? 0.92 : 0.95);
+        rSlotItem.flex.setTarget(isPressingTop ? 1.16 : 1.10, isPressingTop ? 0.025 : 0);
+      } else {
+        mItem.flex.setTarget(1);
+        sItem.flex.setTarget(1);
+        rSlotItem.flex.setTarget(1);
+      }
+
+      if (activeControlPress === musicBtn) {
+        mItem.scaleX.setTarget(1.02, 0.02);
+        mItem.scaleY.setTarget(0.93, -0.04);
+        [mItem.rTL, mItem.rTR, mItem.rBR, mItem.rBL].forEach(r => r.setTarget(16));
+      } else if (activeControlHover === musicBtn) {
+        mItem.scaleX.setTarget(1.01);
+        mItem.scaleY.setTarget(0.98);
+        const hr = musicBaseR === 20 ? 25 : 22;
+        [mItem.rTL, mItem.rTR, mItem.rBR, mItem.rBL].forEach(r => r.setTarget(hr));
+      } else {
+        mItem.scaleX.setTarget(1);
+        mItem.scaleY.setTarget(1);
+        [mItem.rTL, mItem.rTR, mItem.rBR, mItem.rBL].forEach(r => r.setTarget(musicBaseR));
+      }
+
+      if (activeControlPress === startBtn) {
+        sItem.scaleX.setTarget(1.03, 0.03);
+        sItem.scaleY.setTarget(0.92, -0.04);
+        [sItem.rTL, sItem.rTR, sItem.rBR, sItem.rBL].forEach(r => r.setTarget(16));
+      } else if (activeControlHover === startBtn) {
+        sItem.scaleX.setTarget(1.01);
+        sItem.scaleY.setTarget(0.98);
+        const hr = state.isRunning ? 25 : 22;
+        [sItem.rTL, sItem.rTR, sItem.rBR, sItem.rBL].forEach(r => r.setTarget(hr));
+      } else {
+        sItem.scaleX.setTarget(1);
+        sItem.scaleY.setTarget(1);
+        [sItem.rTL, sItem.rTR, sItem.rBR, sItem.rBL].forEach(r => r.setTarget(startBaseR));
+      }
+
+      if (activeControlPress === resetBtn) {
+        rstItem.flex.setTarget(1.15, 0.025);
+        tskItem.flex.setTarget(0.85, -0.02);
+        rstItem.scaleY.setTarget(0.93, -0.04);
+        rstItem.rTL.setTarget(20); rstItem.rBL.setTarget(20);
+        rstItem.rTR.setTarget(20); rstItem.rBR.setTarget(20);
+        tskItem.rTL.setTarget(12); tskItem.rBL.setTarget(12);
+      } else if (activeControlHover === resetBtn) {
+        rstItem.flex.setTarget(1.10);
+        tskItem.flex.setTarget(0.90);
+        rstItem.scaleY.setTarget(0.98);
+        tskItem.scaleY.setTarget(0.99);
+        rstItem.rTL.setTarget(24); rstItem.rBL.setTarget(24);
+        rstItem.rTR.setTarget(18); rstItem.rBR.setTarget(18);
+        tskItem.rTL.setTarget(12); tskItem.rBL.setTarget(12);
+      } else if (activeControlPress === addTaskTopBtn) {
+        tskItem.flex.setTarget(1.15, 0.025);
+        rstItem.flex.setTarget(0.85, -0.02);
+        tskItem.scaleY.setTarget(0.93, -0.04);
+        tskItem.rTL.setTarget(20); tskItem.rBL.setTarget(20);
+        tskItem.rTR.setTarget(20); tskItem.rBR.setTarget(20);
+        rstItem.rTR.setTarget(12); rstItem.rBR.setTarget(12);
+      } else if (activeControlHover === addTaskTopBtn) {
+        tskItem.flex.setTarget(1.10);
+        rstItem.flex.setTarget(0.90);
+        tskItem.scaleY.setTarget(0.98);
+        rstItem.scaleY.setTarget(0.99);
+        tskItem.rTL.setTarget(18); tskItem.rBL.setTarget(18);
+        tskItem.rTR.setTarget(24); tskItem.rBR.setTarget(24);
+        rstItem.rTR.setTarget(12); rstItem.rBR.setTarget(12);
+      } else {
+        rstItem.flex.setTarget(1);
+        tskItem.flex.setTarget(1);
+        rstItem.scaleY.setTarget(1);
+        tskItem.scaleY.setTarget(1);
+        rstItem.rTL.setTarget(28); rstItem.rTR.setTarget(14);
+        rstItem.rBR.setTarget(14); rstItem.rBL.setTarget(28);
+        tskItem.rTL.setTarget(14); tskItem.rTR.setTarget(28);
+        tskItem.rBR.setTarget(28); tskItem.rBL.setTarget(14);
+      }
+
+      wakeSpringLoop();
+    }
+
+    [musicBtn, startBtn, resetBtn, addTaskTopBtn].forEach(btn => {
+      btn.addEventListener('pointerenter', () => {
+        activeControlHover = btn;
+        updateControlRowSprings();
+      });
+      btn.addEventListener('pointerleave', () => {
+        if (activeControlHover === btn) activeControlHover = null;
+        if (activeControlPress === btn) activeControlPress = null;
+        const item = springElements.get(btn);
+        item.tx.setTarget(0);
+        item.ty.setTarget(0);
+        updateControlRowSprings();
+      });
+      btn.addEventListener('pointerdown', () => {
+        activeControlPress = btn;
+        updateControlRowSprings();
+      });
+      btn.addEventListener('pointerup', () => {
+        if (activeControlPress === btn) activeControlPress = null;
+        updateControlRowSprings();
+      });
+      btn.addEventListener('pointermove', (e) => {
+        const rect = btn.getBoundingClientRect();
+        const item = springElements.get(btn);
+        item.tx.setTarget((e.clientX - (rect.left + rect.width / 2)) * 0.06);
+        item.ty.setTarget((e.clientY - (rect.top + rect.height / 2)) * 0.10);
+        wakeSpringLoop();
+      });
+    });
+
+    // =========================================================================
+    // 5. PIXABAY MUSIC RANDOM STATION ENGINE (#1):
+    //    - Zero AI / local synthesized music!
+    //    - Streams full-length (2 to 4 min) tracks from Pixabay Music CDN
+    //    - True random shuffle bag (no fixed playlist order)
+    //    - Balanced station headroom (STATION_HEADROOM_GAIN = 0.42) so ambient
+    //      sounds from Google Sound Library are never drowned out (#2)
+    // =========================================================================
+    let audioCtx = null;
+
+    function ensureAudioCtx() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!audioCtx && AudioContextClass) {
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // =========================================================================
+    // GOOGLE SOUND LIBRARY COUNTDOWN COMPLETION RINGTONES (#5):
+    //   - 「专注」 (focus) mode ends: Plays a short classical mechanical twin-bell
+    //     alarm clock sound from Google Sound Library (`mechanical_clock_ring.ogg` / `alarm_clock.ogg`).
+    //   - 「短歇」 (shortBreak) & 「长歇」 (longBreak) mode ends: Plays a short
+    //     typical school class bell sound from Google Sound Library (`medium_bell_ringing_near.ogg`).
+    // =========================================================================
+    const GOOGLE_RINGTONE_LIBRARY = {
+      focus: [
+        'https://actions.google.com/sounds/v1/alarms/mechanical_clock_ring.ogg',
+        'https://actions.google.com/sounds/v1/cartoon/mechanical_clock_ring.ogg',
+        'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg'
+      ],
+      breakBell: [
+        'https://actions.google.com/sounds/v1/alarms/medium_bell_ringing_near.ogg',
+        'https://actions.google.com/sounds/v1/alarms/dinner_bell_triangle.ogg'
+      ]
+    };
+
+    const preloadedRingtones = { focus: [], breakBell: [] };
+    function preloadGoogleRingtones() {
+      ['focus', 'breakBell'].forEach(key => {
+        GOOGLE_RINGTONE_LIBRARY[key].forEach(url => {
+          const a = new Audio();
+          a.preload = 'auto';
+          a.src = url;
+          a.load();
+          preloadedRingtones[key].push(a);
+        });
+      });
+    }
+    setTimeout(preloadGoogleRingtones, 100);
+
+    function playSessionCompletionRingtone(completedMode) {
+      const isFocus = completedMode === 'focus';
+      const urls = isFocus ? GOOGLE_RINGTONE_LIBRARY.focus : GOOGLE_RINGTONE_LIBRARY.breakBell;
+      const ringDurationMs = isFocus ? 3200 : 3400;
+      const targetVol = Math.min(1, Math.max(0.35, state.masterVolume * 0.90));
+
+      let played = false;
+      function tryPlayUrl(idx) {
+        if (idx >= urls.length || played) return;
+        const ringAudio = new Audio(urls[idx]);
+        ringAudio.preload = 'auto';
+        ringAudio.volume = targetVol;
+        // For school bell / classical clock, start right at the active ringing transient
+        ringAudio.currentTime = 0.05;
+
+        const playPromise = ringAudio.play();
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            played = true;
+            // Smooth fade-out after ~2.7s so it's a crisp, brief ringtone (#5)
+            const fadeStartMs = ringDurationMs - 600;
+            setTimeout(() => {
+              const fadeSteps = 12;
+              let step = 0;
+              const fadeTimer = setInterval(() => {
+                step++;
+                ringAudio.volume = Math.max(0, targetVol * (1 - step / fadeSteps));
+                if (step >= fadeSteps) {
+                  clearInterval(fadeTimer);
+                  try {
+                    ringAudio.pause();
+                    ringAudio.src = '';
+                  } catch (e) {}
+                }
+              }, 45);
+            }, fadeStartMs);
+          }).catch(() => {
+            tryPlayUrl(idx + 1);
+          });
+        }
+      }
+      tryPlayUrl(0);
+    }
+
+    // Station Headroom Gain: Calibrated to 0.28 (plus per-track gain & warm 0.95x tape speed)
+    // so station Lo-Fi music is soft, gentle, library-appropriate, and never overpowers ambient sounds (#1, #5).
+    const STATION_HEADROOM_GAIN = 0.28;
+
+    let activeDeck = deckA;
+    let inactiveDeck = deckB;
+    let isCrossfading = false;
+    let crossfadeStartPerf = 0;
+    const CROSSFADE_DURATION_MS = 3200;
+    let activeDeckFadeMultiplier = 1.0;
+    let inactiveDeckFadeMultiplier = 0.0;
+    let seekLockUntil = 0;
+    let pendingSeekRatio = null;
+
+    function applyTrackTuningToDeck(deck, track) {
+      if (!deck || !track) return;
+      const rate = track.rate || 0.95;
+      deck.dataset.trackGain = String(track.gain || 0.80);
+      deck.dataset.trackRate = String(rate);
+      try {
+        deck.preservesPitch = false;
+        deck.playbackRate = rate;
+      } catch (e) {}
+    }
+
+    function computeDeckVolume(deck, masterVol, fadeMult = 1.0) {
+      const trackGain = parseFloat(deck && deck.dataset && deck.dataset.trackGain) || 0.80;
+      return Math.min(1, Math.max(0, masterVol * STATION_HEADROOM_GAIN * trackGain * fadeMult));
+    }
+
+    // =========================================================================
+    // REAL-TIME OPEN NETWORK MUSIC DISCOVERY ENGINE (#1):
+    //   - ZERO hardcoded local playlist! Dynamically queries open-web audio APIs
+    //     in real time via CORS `fetch()`:
+    //     1. Openverse Creative Commons Audio API (`api.openverse.org/v1/audio/`)
+    //     2. Internet Archive Open Audio Search & Metadata API (`archive.org/advancedsearch.php` & `archive.org/metadata/`)
+    //     3. Wikimedia Commons Open Audio Search API (`commons.wikimedia.org/w/api.php`)
+    //   - Parses both "MM:SS" and numeric durations so 100% of full-length (60s-480s)
+    //     Lo-Fi, Focus, Self-Study, Chillhop, and Library Piano tracks are discovered.
+    //   - Tracks played URLs in `state.playedTrackUrls` so songs NEVER repeat.
+    // =========================================================================
+    const LIVE_ARCHIVE_STUDY_ALBUMS = [
+      'jamendo-612992', // Slxt Sync - LoFi Beats to Study and Focus (5 VBR MP3 tracks)
+      'jamendo-498615', // Janevo - LoFi Chill Hip Hop (10+ VBR MP3 tracks)
+      'jamendo-575509', // LOFI 528 - Chill Vibes Vol. 1 (VBR MP3 tracks)
+      'jamendo-620715', // VibeDepot - Lofi (23+ VBR MP3 tracks)
+      'lofi-plvgkk',    // Lofi Chill Ambience (VBR MP3 tracks)
+      'soundcloud-557089965', // Chill Lofi Hip Hop Instrumental - Days Like These
+      'cozy-alone-lofi-chill-out-beats',
+      'LoFiBeatsRadioEpisode1',
+      'LofiBeatsRadioEpisodeFour7142017'
+    ];
+
+    const LIVE_ARCHIVE_SEARCH_QUERIES = [
+      'mediatype:(audio) AND format:("VBR MP3") AND (title:("lofi") OR subject:("lofi")) AND NOT (title:(rap) OR title:(rock) OR title:(metal))',
+      'mediatype:(audio) AND format:("VBR MP3") AND (title:("chillhop") OR subject:("chillhop") OR title:("lofi study"))',
+      'mediatype:(audio) AND format:("VBR MP3") AND (title:("relaxing piano") OR title:("ambient piano") OR title:("soft piano"))',
+      'mediatype:(audio) AND format:("VBR MP3") AND (title:("lofi beats") OR title:("chill lofi") OR title:("study beats"))'
+    ];
+
+    const LIVE_OPENVERSE_QUERIES = [
+      'lofi study',
+      'lofi chill',
+      'chillhop',
+      'ambient piano',
+      'study beats',
+      'relaxing guitar instrumental',
+      'soft piano solo'
+    ];
+
+    const LIVE_WIKIMEDIA_QUERIES = [
+      'filetype:audio "Erik Satie" OR "Gymnopedie" OR "Gnossienne"',
+      'filetype:audio "Clair de lune" OR "Reverie" Debussy piano',
+      'filetype:audio "Nocturne" Chopin piano solo',
+      'filetype:audio ambient piano solo calm'
+    ];
+
+    const NOISY_EXCLUDE_REGEX = /(rock|metal|punk|hardcore|techno|dubstep|trance|rave|scream|shout|rap|vocal|club|party|energetic|upbeat|fast|heavy|industrial|alarm|siren|effect|loop|sample|drum and bass)/i;
+
+    const MOOD_TAG_LABELS = [
+      '静谧自习室', '图书馆靠窗', '深夜阅览室', '晚间自习台灯',
+      '书页与茶香', '沉浸专注', '午后图书馆', '独处阅读微光'
+    ];
+
+    function parseDurationToSeconds(val) {
+      if (!val) return 0;
+      if (typeof val === 'number') return val;
+      const str = String(val).trim();
+      if (str.includes(':')) {
+        const parts = str.split(':').map(Number);
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          return parts[0] * 60 + parts[1];
+        }
+        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+          return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+      }
+      return parseFloat(str) || 0;
+    }
+
+    function cleanTrackDisplayTitle(rawTitle, creator = '') {
+      let cleaned = String(rawTitle || '')
+        .replace(/^File:/i, '')
+        .replace(/\.(mp3|ogg|oga|flac|wav)$/i, '')
+        .replace(/^[0-9]{1,3}\s*[-_.]\s*/, '')
+        .replace(/[_]+/g, ' ')
+        .trim();
+      if (!cleaned || cleaned.length < 2) cleaned = 'Lo-Fi Study Instrumental';
+      if (cleaned.length > 26) cleaned = cleaned.slice(0, 26).trim();
+      const mood = MOOD_TAG_LABELS[randomInt(MOOD_TAG_LABELS.length)];
+      if (creator && creator.length <= 14 && !cleaned.toLowerCase().includes(creator.toLowerCase())) {
+        return `${cleaned} · ${creator}`;
+      }
+      return `${cleaned} · ${mood}`;
+    }
+
+    function registerDiscoveredTrack(rawTitle, url, creator = '') {
+      if (!url || typeof url !== 'string' || !url.startsWith('https://')) return false;
+      if (state.discoveredTrackUrls.has(url)) return false;
+      if (NOISY_EXCLUDE_REGEX.test(rawTitle) || NOISY_EXCLUDE_REGEX.test(url)) return false;
+
+      state.discoveredTrackUrls.add(url);
+      const newTrack = {
+        title: cleanTrackDisplayTitle(rawTitle, creator),
+        url,
+        gain: 0.78,
+        rate: 0.95
+      };
+
+      state.onlineTracks.push(newTrack);
+      const newIdx = state.onlineTracks.length - 1;
+      const insertPos = randomInt(state.unplayedShuffleBag.length + 1);
+      state.unplayedShuffleBag.splice(insertPos, 0, newIdx);
+
+      // As soon as the very first live online track arrives, bind it to deckA if nothing is playing yet
+      if (state.onlineTracks.length === 1 && !state.stationPlaying) {
+        state.currentTrackIndex = 0;
+        stationTrackTitle.textContent = newTrack.title;
+        deckA.src = newTrack.url;
+        applyTrackTuningToDeck(deckA, newTrack);
+        deckA.load();
+      }
+      return true;
+    }
+
+    async function fetchArchiveItemTracks(identifier, fallbackCreator = '') {
+      try {
+        const res = await fetch(`https://archive.org/metadata/${encodeURIComponent(identifier)}`);
+        if (!res.ok) return 0;
+        const data = await res.json();
+        if (!data || !Array.isArray(data.files)) return 0;
+        const meta = data.metadata || {};
+        const creator = Array.isArray(meta.creator) ? meta.creator[0] : (meta.creator || fallbackCreator || '');
+        const albumTitle = String(meta.title || identifier);
+        if (NOISY_EXCLUDE_REGEX.test(albumTitle)) return 0;
+
+        let added = 0;
+        const shuffledFiles = shuffleArrayInPlace([...data.files]);
+        for (const f of shuffledFiles) {
+          if (!f || !f.name) continue;
+          const fname = String(f.name);
+          const lower = fname.toLowerCase();
+          if (!lower.endsWith('.mp3') && !lower.endsWith('.ogg')) continue;
+          const size = parseInt(f.size, 10) || 0;
+          const lengthSec = parseDurationToSeconds(f.length);
+          // Accept full-length songs (50s to 540s, or 800KB to 20MB)
+          if (lengthSec > 0 && (lengthSec < 50 || lengthSec > 540)) continue;
+          if (lengthSec === 0 && size > 0 && (size < 800000 || size > 20000000)) continue;
+
+          const trackTitle = f.title || fname.replace(/\.(mp3|ogg)$/i, '');
+          const streamUrl = `https://archive.org/download/${encodeURIComponent(identifier)}/${encodeURIComponent(fname).replace(/%2F/g, '/')}`;
+          if (registerDiscoveredTrack(trackTitle, streamUrl, creator)) {
+            added++;
+          }
+        }
+        return added;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    async function fetchLiveArchiveSearchBatch() {
+      try {
+        const query = LIVE_ARCHIVE_SEARCH_QUERIES[randomInt(LIVE_ARCHIVE_SEARCH_QUERIES.length)];
+        const randomPage = 1 + randomInt(8);
+        const searchUrl = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier,title,creator&rows=25&page=${randomPage}&output=json`;
+        const res = await fetch(searchUrl);
+        if (!res.ok) return 0;
+        const data = await res.json();
+        const docs = (data && data.response && Array.isArray(data.response.docs)) ? data.response.docs : [];
+        if (docs.length === 0) return 0;
+
+        const pickedDocs = shuffleArrayInPlace([...docs]).slice(0, 4);
+        const counts = await Promise.all(
+          pickedDocs.map(doc => fetchArchiveItemTracks(doc.identifier, doc.creator || ''))
+        );
+        return counts.reduce((a, b) => a + b, 0);
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    // Live Pixabay Music Search Playlist Crawler:
+    // Connects directly to https://pixabay.com/music/search/lofi/?pagi={1..920} (900+ pages)
+    // via multi-gateway CORS proxies and extracts full-length cdn.pixabay.com/audio/*.mp3 streams (#1)
+    async function fetchPixabayLofiPlaylistPage() {
+      const randomPage = 1 + randomInt(920);
+      const targetPlaylistUrl = `https://pixabay.com/music/search/lofi/?pagi=${randomPage}`;
+      const proxyGateways = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetPlaylistUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetPlaylistUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(targetPlaylistUrl)}`
+      ];
+
+      for (const gatewayUrl of proxyGateways) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5500);
+          const res = await fetch(gatewayUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!res.ok) continue;
+          const text = await res.text();
+          if (!text || text.length < 500) continue;
+
+          // Extract all direct Pixabay audio CDN MP3 URLs from the fetched page
+          const mp3Regex = /https:\/\/cdn\.pixabay\.com\/(?:download\/)?audio\/\d{4}\/\d{2}\/\d{2}\/audio_[a-zA-Z0-9_]+\.mp3(?:\?filename=([a-zA-Z0-9_-]+)\.mp3)?/g;
+          let match;
+          let added = 0;
+          const foundMatches = [];
+          while ((match = mp3Regex.exec(text)) !== null) {
+            foundMatches.push({
+              url: match[0].split('?')[0],
+              slug: match[1] || ''
+            });
+          }
+          shuffleArrayInPlace(foundMatches);
+          for (const item of foundMatches) {
+            const rawName = item.slug
+              ? item.slug.replace(/-[0-9]+$/, '').replace(/-/g, ' ')
+              : `Pixabay Lofi #${randomPage}`;
+            if (registerDiscoveredTrack(rawName, item.url, 'Pixabay Lofi')) {
+              added++;
+            }
+          }
+          if (added > 0) return added;
+        } catch (e) {
+          // Try next gateway
+        }
+      }
+      return 0;
+    }
+
+    async function fetchLiveOpenverseBatch() {
+      try {
+        const q = LIVE_OPENVERSE_QUERIES[randomInt(LIVE_OPENVERSE_QUERIES.length)];
+        const page = 1 + randomInt(6);
+        const url = `https://api.openverse.org/v1/audio/?q=${encodeURIComponent(q)}&length=medium&page_size=20&page=${page}`;
+        const res = await fetch(url);
+        if (!res.ok) return 0;
+        const data = await res.json();
+        if (!data || !Array.isArray(data.results)) return 0;
+
+        let added = 0;
+        const shuffled = shuffleArrayInPlace([...data.results]);
+        for (const item of shuffled) {
+          if (!item || !item.url) continue;
+          const durMs = parseInt(item.duration, 10) || 0;
+          if (durMs > 0 && (durMs < 50000 || durMs > 540000)) continue;
+          const streamUrl = String(item.url);
+          if (!streamUrl.startsWith('https://')) continue;
+          // Exclude webpage links that aren't direct audio streams
+          if (/\.(html|php|htm)$/i.test(streamUrl)) continue;
+          const title = item.title || 'Lo-Fi Study';
+          const creator = item.creator || '';
+          if (registerDiscoveredTrack(title, streamUrl, creator)) {
+            added++;
+          }
+        }
+        return added;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    async function fetchLiveWikimediaAudioBatch() {
+      try {
+        const q = LIVE_WIKIMEDIA_QUERIES[randomInt(LIVE_WIKIMEDIA_QUERIES.length)];
+        const offset = randomInt(15);
+        const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrnamespace=6&gsrlimit=15&gsroffset=${offset}&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*`;
+        const res = await fetch(url);
+        if (!res.ok) return 0;
+        const data = await res.json();
+        const pages = (data && data.query && data.query.pages) ? Object.values(data.query.pages) : [];
+        let added = 0;
+        const shuffled = shuffleArrayInPlace(pages);
+        for (const p of shuffled) {
+          const info = p && Array.isArray(p.imageinfo) ? p.imageinfo[0] : null;
+          if (!info || !info.url) continue;
+          const mime = String(info.mime || '').toLowerCase();
+          if (!mime.includes('audio') && !mime.includes('ogg') && !mime.includes('mpeg')) continue;
+          const size = parseInt(info.size, 10) || 0;
+          if (size < 700000 || size > 22000000) continue;
+          if (registerDiscoveredTrack(p.title || 'Calm Piano', info.url, 'Classical Study')) {
+            added++;
+          }
+        }
+        return added;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    async function replenishLiveMusicPool() {
+      if (state.isFetchingLiveMusic) return;
+      state.isFetchingLiveMusic = true;
+      try {
+        const randomAlbums = shuffleArrayInPlace([...LIVE_ARCHIVE_STUDY_ALBUMS]).slice(0, 3);
+        await Promise.allSettled([
+          fetchPixabayLofiPlaylistPage(),
+          fetchPixabayLofiPlaylistPage(),
+          ...randomAlbums.map(id => fetchArchiveItemTracks(id)),
+          fetchLiveOpenverseBatch(),
+          fetchLiveArchiveSearchBatch(),
+          fetchLiveWikimediaAudioBatch()
+        ]);
+      } catch (e) {
+      } finally {
+        state.isFetchingLiveMusic = false;
+        // Emergency network fallback ONLY if all 3 live APIs were unreachable (e.g., strict firewall)
+        if (state.onlineTracks.length === 0) {
+          const fallbackSeeds = shuffleArrayInPlace([
+            { title: 'Shuttle · LoFi Study & Focus', url: 'https://archive.org/download/jamendo-612992/01%20-%20Shuttle.mp3' },
+            { title: 'Green Background · LoFi Focus', url: 'https://archive.org/download/jamendo-612992/02%20-%20green%20background.mp3' },
+            { title: 'Full Moon · 深夜自习室', url: 'https://archive.org/download/jamendo-612992/03%20-%20full%20moon.mp3' },
+            { title: 'Elevation · 图书馆午后', url: 'https://archive.org/download/jamendo-612992/04%20-%20elevation.mp3' },
+            { title: 'Chill Carpet · 静谧阅读', url: 'https://archive.org/download/jamendo-612992/05%20-%20chill%20carpet.mp3' },
+            { title: 'Lofi Study · 静谧自习室', url: 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3' },
+            { title: 'Empty Mind · 深度专注时刻', url: 'https://cdn.pixabay.com/audio/2022/09/02/audio_72502a492a.mp3' },
+            { title: 'Spirit Blossom · 图书馆靠窗', url: 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3' }
+          ]);
+          fallbackSeeds.forEach(item => registerDiscoveredTrack(item.title, item.url));
+        }
+      }
+    }
+
+    // Start live network discovery immediately on page load
+    replenishLiveMusicPool();
+
+    // Draw next track from the live-discovered random shuffle bag, never repeating (#1)
+    function pickRandomNextTrackIndex() {
+      const len = state.onlineTracks.length;
+      if (len <= 1) return 0;
+
+      if (state.unplayedShuffleBag.length < 14) {
+        replenishLiveMusicPool();
+      }
+
+      while (state.unplayedShuffleBag.length > 0) {
+        const candidateIdx = state.unplayedShuffleBag.pop();
+        const candidate = state.onlineTracks[candidateIdx];
+        if (candidate && candidateIdx !== state.currentTrackIndex && !state.playedTrackUrls.has(candidate.url)) {
+          return candidateIdx;
+        }
+      }
+
+      const unplayedIndices = [];
+      for (let i = 0; i < len; i++) {
+        if (i !== state.currentTrackIndex && !state.playedTrackUrls.has(state.onlineTracks[i].url)) {
+          unplayedIndices.push(i);
+        }
+      }
+
+      if (unplayedIndices.length === 0) {
+        state.playedTrackUrls.clear();
+        replenishLiveMusicPool();
+        for (let i = 0; i < len; i++) {
+          if (i !== state.currentTrackIndex) unplayedIndices.push(i);
+        }
+      }
+
+      shuffleArrayInPlace(unplayedIndices);
+      state.unplayedShuffleBag = unplayedIndices;
+      const nextIdx = state.unplayedShuffleBag.pop();
+      return nextIdx !== undefined ? nextIdx : ((state.currentTrackIndex + 1) % len);
+    }
+
+    async function transitionToTrack(nextIndex, initialSeekRatio = null) {
+      if (state.onlineTracks.length === 0) {
+        stationTrackTitle.textContent = '正在实时检索网络纯音乐...';
+        await replenishLiveMusicPool();
+      }
+      const pool = state.onlineTracks;
+      if (pool.length === 0) return;
+
+      state.currentTrackIndex = ((nextIndex % pool.length) + pool.length) % pool.length;
+      const track = pool[state.currentTrackIndex];
+      if (track && track.url) {
+        state.playedTrackUrls.add(track.url);
+      }
+
+      stationTrackTitle.textContent = track.title;
+      const startRatio = initialSeekRatio !== null ? initialSeekRatio : 0;
+      state.stationProgress = startRatio;
+      pendingSeekRatio = initialSeekRatio;
+      state.stationPlaying = true;
+      syncMusicUIState();
+
+      const outgoingDeck = activeDeck;
+      const incomingDeck = inactiveDeck;
+      const wasOutgoingPlaying = !outgoingDeck.paused && outgoingDeck.currentTime > 0;
+
+      activeDeck = incomingDeck;
+      inactiveDeck = outgoingDeck;
+
+      incomingDeck.src = track.url;
+      applyTrackTuningToDeck(incomingDeck, track);
+      incomingDeck.volume = 0;
+      incomingDeck.load();
+
+      const applyStartSeekAndPlay = () => {
+        applyTrackTuningToDeck(incomingDeck, track);
+        if (pendingSeekRatio !== null && incomingDeck.duration && isFinite(incomingDeck.duration)) {
+          try {
+            incomingDeck.currentTime = pendingSeekRatio * incomingDeck.duration;
+            pendingSeekRatio = null;
+            seekLockUntil = performance.now() + 500;
+          } catch (e) {}
+        }
+        const p = incomingDeck.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            if (state.stationPlaying && activeDeck === incomingDeck) {
+              setTimeout(() => {
+                if (state.stationPlaying && activeDeck === incomingDeck && incomingDeck.paused) {
+                  transitionToTrack(pickRandomNextTrackIndex());
+                }
+              }, 400);
+            }
+          });
+        }
+      };
+
+      if (incomingDeck.readyState >= 1) {
+        applyStartSeekAndPlay();
+      } else {
+        incomingDeck.addEventListener('loadedmetadata', function onMeta() {
+          incomingDeck.removeEventListener('loadedmetadata', onMeta);
+          applyStartSeekAndPlay();
+        });
+      }
+
+      if (wasOutgoingPlaying) {
+        isCrossfading = true;
+        crossfadeStartPerf = performance.now();
+        activeDeckFadeMultiplier = 0.0;
+        inactiveDeckFadeMultiplier = 1.0;
+      } else {
+        isCrossfading = true;
+        crossfadeStartPerf = performance.now() - (CROSSFADE_DURATION_MS * 0.55);
+        activeDeckFadeMultiplier = 0.0;
+        inactiveDeckFadeMultiplier = 0.0;
+        try { outgoingDeck.pause(); } catch (e) {}
+      }
+    }
+
+    async function toggleStationPlayPause() {
+      if (state.stationPlaying) {
+        state.stationPlaying = false;
+        isCrossfading = false;
+        activeDeck.pause();
+        inactiveDeck.pause();
+        syncMusicUIState();
+      } else {
+        if (state.onlineTracks.length === 0) {
+          stationTrackTitle.textContent = '正在实时检索网络纯音乐...';
+          await replenishLiveMusicPool();
+        }
+        if (!activeDeck.src && state.onlineTracks.length > 0) {
+          transitionToTrack(pickRandomNextTrackIndex(), state.stationProgress > 0 ? state.stationProgress : null);
+        } else if (activeDeck.src) {
+          state.stationPlaying = true;
+          const currentTrack = state.onlineTracks[state.currentTrackIndex];
+          if (currentTrack && currentTrack.url) {
+            state.playedTrackUrls.add(currentTrack.url);
+          }
+          syncMusicUIState();
+          isCrossfading = false;
+          activeDeckFadeMultiplier = 1.0;
+          applyTrackTuningToDeck(activeDeck, currentTrack);
+          activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, 1.0);
+          if (pendingSeekRatio !== null && activeDeck.duration && isFinite(activeDeck.duration)) {
+            try {
+              activeDeck.currentTime = pendingSeekRatio * activeDeck.duration;
+              pendingSeekRatio = null;
+            } catch (e) {}
+          }
+          activeDeck.play().catch(() => {
+            transitionToTrack(pickRandomNextTrackIndex());
+          });
+        }
+      }
+    }
+
+    [deckA, deckB].forEach(deck => {
+      deck.addEventListener('ended', () => {
+        if (isSeekingWavy) return;
+        if (deck === activeDeck && state.stationPlaying && !isCrossfading) {
+          state.stationProgress = 1;
+          transitionToTrack(pickRandomNextTrackIndex());
+        }
+      });
+      deck.addEventListener('error', () => {
+        if (deck === activeDeck && state.stationPlaying) {
+          setTimeout(() => {
+            if (deck === activeDeck && state.stationPlaying) {
+              transitionToTrack(pickRandomNextTrackIndex());
+            }
+          }, 350);
+        }
+      });
+    });
+
+    // =========================================================================
+    // 6. BUILT-IN GOOGLE SOUND LIBRARY AMBIENT ENGINE (#2):
+    //    - 「雨天」 (rain) & 「壁炉」 (fireplace): Preserved 100% unchanged at
+    //      their user-verified comfortable human-ear loudness benchmark!
+    //    - 「海浪」 (waves): Boosted 6x (+15.5 dB) using 8 staggered voices of
+    //      `waves_crashing_on_rock_beach.ogg` (0.72-0.60) & `water_lapping_wind.ogg`
+    //      (1.00-0.96) so it sounds equally loud as 「雨天」 and 「壁炉」 at normal volume.
+    //    - 「森林」 (forest): Rebuilt with 16 staggered full-gain (0.88-1.00) voices
+    //      combining Google Sound Library's clearest woodland files
+    //      (`june_songbirds.ogg`, `small_stream_flowing.ogg`, `wind_in_leaves_on_porch.ogg`,
+    //      `leaves_russle_on_tree.ogg`, `forest_wind_summer.ogg`, `afternoon_crickets_long.ogg`)
+    //      so 「森林」 is vivid, clear, and matches 「雨天」, 「壁炉」, and 「海浪」 in human ears!
+    // =========================================================================
+    const BUILTIN_GOOGLE_AMBIENT_LIBRARY = {
+      rain: {
+        label: '雨天',
+        voices: [
+          // Balanced rain volume: full and clear on its own, while leaving warm midrange headroom so Station Lo-Fi music is never masked
+          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', gain: 0.46, rate: 0.96, startOffset: 0.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', gain: 0.42, rate: 0.90, startOffset: 3.5, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', gain: 0.38, rate: 1.02, startOffset: 7.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', gain: 0.34, rate: 0.93, startOffset: 10.5, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg', gain: 0.14, rate: 0.92, startOffset: 2.0, activeStart: 0.2, activeEnd: null }
+        ]
+      },
+      fireplace: {
+        label: '壁炉',
+        voices: [
+          // Boosted 10-voice warm hearth fire to match the exact full, rich loudness of 海浪 and 森林 (#1)
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', gain: 1.00, rate: 1.00, startOffset: 0.0, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', gain: 1.00, rate: 0.93, startOffset: 1.5, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', gain: 1.00, rate: 1.07, startOffset: 3.0, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', gain: 1.00, rate: 0.88, startOffset: 4.5, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', gain: 1.00, rate: 1.12, startOffset: 6.0, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', gain: 1.00, rate: 0.96, startOffset: 7.5, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', gain: 1.00, rate: 1.03, startOffset: 9.0, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/household/wind_drawn_into_fire.ogg', gain: 1.00, rate: 0.98, startOffset: 1.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/household/wind_drawn_into_fire.ogg', gain: 1.00, rate: 0.91, startOffset: 3.8, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/household/wind_drawn_into_fire.ogg', gain: 0.98, rate: 1.04, startOffset: 6.6, activeStart: 0.2, activeEnd: null }
+        ]
+      },
+      waves: {
+        label: '海浪',
+        voices: [
+          // Boosted 10-voice staggered ocean surf, shore lapping & coastal water flow (with unique ?v= keys to bypass Chromium HTTP 206 Range cache lock!)
+          { url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg', gain: 0.78, rate: 1.00, startOffset: 0.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg', gain: 0.74, rate: 0.94, startOffset: 2.8, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg', gain: 0.70, rate: 0.89, startOffset: 5.6, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg', gain: 0.66, rate: 1.04, startOffset: 8.4, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg', gain: 1.00, rate: 1.00, startOffset: 0.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg', gain: 1.00, rate: 0.93, startOffset: 2.2, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg', gain: 0.98, rate: 1.06, startOffset: 4.4, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg', gain: 0.98, rate: 0.96, startOffset: 6.6, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/water_rushing_stereo_series.ogg', gain: 0.62, rate: 0.92, startOffset: 1.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', gain: 0.55, rate: 0.90, startOffset: 3.0, activeStart: 0.2, activeEnd: null }
+        ]
+      },
+      forest: {
+        label: '森林',
+        voices: [
+          // 18 staggered full-gain voices across 9 distinct Google Sound Library woodland files (with unique ?v= keys so Chromium never blocks concurrent streams)
+          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', gain: 1.00, rate: 1.00, startOffset: 0.0, activeStart: 0.1, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', gain: 1.00, rate: 0.94, startOffset: 1.8, activeStart: 0.1, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', gain: 1.00, rate: 1.06, startOffset: 3.6, activeStart: 0.1, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', gain: 1.00, rate: 0.97, startOffset: 5.4, activeStart: 0.1, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', gain: 1.00, rate: 1.03, startOffset: 7.2, activeStart: 0.1, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds_with_crows.ogg', gain: 0.92, rate: 0.98, startOffset: 1.2, activeStart: 0.1, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', gain: 0.98, rate: 0.98, startOffset: 0.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', gain: 0.96, rate: 0.92, startOffset: 2.5, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', gain: 0.94, rate: 1.04, startOffset: 5.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', gain: 0.92, rate: 0.95, startOffset: 7.5, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/wind_in_leaves_on_porch.ogg', gain: 1.00, rate: 1.00, startOffset: 0.5, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/wind_in_leaves_on_porch.ogg', gain: 1.00, rate: 0.93, startOffset: 3.8, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/wind_in_leaves_on_porch.ogg', gain: 1.00, rate: 1.05, startOffset: 7.1, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/leaves_russle_on_tree.ogg', gain: 1.00, rate: 0.96, startOffset: 1.5, activeStart: 0.15, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/weather/forest_wind_summer.ogg', gain: 1.00, rate: 1.00, startOffset: 0.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/animals/afternoon_crickets_long.ogg', gain: 0.65, rate: 0.96, startOffset: 2.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/outdoor_summer_ambience.ogg', gain: 1.00, rate: 1.00, startOffset: 1.0, activeStart: 0.2, activeEnd: null },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/spring_day_forest.ogg', gain: 1.00, rate: 1.00, startOffset: 0.0, activeStart: 0.2, activeEnd: null }
+        ]
+      }
+    };
+
+    // Preload Google Sound Library audio files into the built-in browser cache on startup
+    const preloadedGoogleSounds = new Map();
+    function preloadGoogleSoundLibrary() {
+      Object.values(BUILTIN_GOOGLE_AMBIENT_LIBRARY).forEach(group => {
+        group.voices.forEach(v => {
+          if (!preloadedGoogleSounds.has(v.url)) {
+            const a = new Audio();
+            a.preload = 'auto';
+            a.src = v.url;
+            a.load();
+            preloadedGoogleSounds.set(v.url, a);
+          }
+        });
+      });
+    }
+    setTimeout(preloadGoogleSoundLibrary, 150);
+
+    const ambientPlayers = {};
+
+    function startAmbientSound(type) {
+      if (ambientPlayers[type]) return;
+      const spec = BUILTIN_GOOGLE_AMBIENT_LIBRARY[type];
+      if (!spec) return;
+
+      let stopped = false;
+      const activeElements = [];
+      const webAudioNodes = [];
+
+      // Hardware Web Audio API GainNode Pre-Amp Booster across all 4 ambient sounds ('rain', 'fireplace', 'waves', 'forest')
+      // Ensures 'rain' and 'fireplace' are boosted to match the exact same rich, full loudness as 'waves' and 'forest' (#1)
+      const PREAMP_BOOST_MAP = {
+        rain: [
+          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', boost: 1.35, offset: 0.0 },
+          { url: 'https://actions.google.com/sounds/v1/weather/light_rain.ogg', boost: 1.05, offset: 4.5 },
+          { url: 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg', boost: 0.25, offset: 1.8 }
+        ],
+        fireplace: [
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', boost: 8.5, offset: 0.0 },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/fire.ogg', boost: 7.5, offset: 3.5 },
+          { url: 'https://actions.google.com/sounds/v1/household/wind_drawn_into_fire.ogg', boost: 4.5, offset: 1.2 }
+        ],
+        waves: [
+          { url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg', boost: 2.6, offset: 0.0 },
+          { url: 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg', boost: 4.2, offset: 1.5 }
+        ],
+        forest: [
+          { url: 'https://actions.google.com/sounds/v1/animals/june_songbirds.ogg', boost: 7.5, offset: 0.0 },
+          { url: 'https://actions.google.com/sounds/v1/water/small_stream_flowing.ogg', boost: 4.5, offset: 1.2 },
+          { url: 'https://actions.google.com/sounds/v1/weather/wind_in_leaves_on_porch.ogg', boost: 5.5, offset: 2.4 },
+          { url: 'https://actions.google.com/sounds/v1/ambiences/spring_day_forest.ogg', boost: 9.5, offset: 0.5 }
+        ]
+      };
+      if (PREAMP_BOOST_MAP[type]) {
+        const boostUrlList = PREAMP_BOOST_MAP[type];
+
+        boostUrlList.forEach(item => {
+          fetch(item.url)
+            .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+            .then(buf => {
+              ensureAudioCtx();
+              if (!audioCtx || stopped) return null;
+              return audioCtx.decodeAudioData(buf);
+            })
+            .then(decoded => {
+              if (!decoded || stopped || !audioCtx) return;
+              const srcNode = audioCtx.createBufferSource();
+              const gainNode = audioCtx.createGain();
+              srcNode.buffer = decoded;
+              srcNode.loop = true;
+              gainNode.gain.value = state.masterVolume * item.boost;
+              srcNode.connect(gainNode);
+              gainNode.connect(audioCtx.destination);
+              const startOffset = (item.offset || 0) % Math.max(0.5, decoded.duration - 0.2);
+              srcNode.start(0, startOffset);
+              webAudioNodes.push({ srcNode, gainNode, boost: item.boost });
+            })
+            .catch(() => {});
+        });
+      }
+
+      spec.voices.forEach((vCfg) => {
+        const audio = new Audio(vCfg.url);
+        audio.preload = 'auto';
+        audio.loop = true;
+        audio.playbackRate = vCfg.rate || 1.0;
+        audio.preservesPitch = false;
+
+        const voiceObj = {
+          audio,
+          cfg: vCfg,
+          envelope: 1.0
+        };
+        activeElements.push(voiceObj);
+
+        audio.addEventListener('loadedmetadata', () => {
+          if (stopped) return;
+          const dur = audio.duration;
+          if (dur && isFinite(dur) && dur > 1) {
+            const maxEnd = vCfg.activeEnd ? Math.min(dur - 0.1, vCfg.activeEnd) : (dur - 0.2);
+            const targetStart = (vCfg.startOffset || 0) % Math.max(0.5, maxEnd);
+            try {
+              audio.currentTime = Math.max(vCfg.activeStart || 0, targetStart);
+            } catch (e) {}
+            if (!stopped && audio.paused) {
+              audio.play().catch(() => {});
+            }
+          }
+        }, { once: true });
+
+        const targetVol = Math.min(1, Math.max(0, state.masterVolume * vCfg.gain));
+        audio.volume = targetVol;
+        audio.play().catch(() => {});
+      });
+
+      // Seamless Active-Window & Boundary Crossfade Loop Monitor (runs every 60ms)
+      // Prevents dead silent tails (e.g. in wind_chimes_of_shells.ogg) and smooths loop boundaries
+      // so the user can NEVER tell a clip is looping (#2)
+      const loopWatchTimer = setInterval(() => {
+        if (stopped) return;
+        activeElements.forEach(v => {
+          const { audio, cfg } = v;
+          if (audio.paused) return;
+          const dur = audio.duration;
+          if (!dur || !isFinite(dur) || dur <= 0.5) return;
+
+          const startBound = cfg.activeStart || 0.08;
+          const endBound = cfg.activeEnd ? Math.min(dur - 0.12, cfg.activeEnd) : (dur - 0.25);
+          const span = Math.max(0.6, endBound - startBound);
+          const cur = audio.currentTime;
+
+          // Smooth cosine fade window near loop boundaries so wrapping back to startBound is 100% click-free
+          const fadeWindow = Math.min(0.45, span * 0.22);
+          let env = 1.0;
+          if (cur < startBound + fadeWindow) {
+            const p = Math.max(0, (cur - startBound) / fadeWindow);
+            env = 0.35 + 0.65 * Math.sin(p * Math.PI * 0.5);
+          } else if (cur > endBound - fadeWindow) {
+            const p = Math.max(0, (endBound - cur) / fadeWindow);
+            env = 0.35 + 0.65 * Math.sin(p * Math.PI * 0.5);
+          }
+          v.envelope = env;
+          audio.volume = Math.min(1, Math.max(0, state.masterVolume * cfg.gain * env));
+
+          if (cur >= endBound) {
+            try {
+              audio.currentTime = startBound + Math.random() * 0.12;
+            } catch (e) {}
+          }
+        });
+      }, 60);
+
+      ambientPlayers[type] = {
+        updateVolume(masterV) {
+          activeElements.forEach(v => {
+            v.audio.volume = Math.min(1, Math.max(0, masterV * v.cfg.gain * v.envelope));
+          });
+          webAudioNodes.forEach(n => {
+            try { n.gainNode.gain.value = masterV * n.boost; } catch (e) {}
+          });
+        },
+        resume() {
+          ensureAudioCtx();
+          activeElements.forEach(v => {
+            if (!stopped && v.audio.paused) {
+              v.audio.play().catch(() => {});
+            }
+          });
+        },
+        stop() {
+          stopped = true;
+          clearInterval(loopWatchTimer);
+          activeElements.forEach(v => {
+            try {
+              v.audio.pause();
+              v.audio.src = '';
+            } catch (e) {}
+          });
+          webAudioNodes.forEach(n => {
+            try {
+              n.srcNode.stop();
+              n.srcNode.disconnect();
+              n.gainNode.disconnect();
+            } catch (e) {}
+          });
+        }
+      };
+    }
+
+    function stopAmbientSound(type) {
+      if (ambientPlayers[type]) {
+        ambientPlayers[type].stop();
+        delete ambientPlayers[type];
+      }
+    }
+
+    function toggleAmbientOption(type) {
+      if (state.activeAmbients.has(type)) {
+        state.activeAmbients.delete(type);
+        stopAmbientSound(type);
+      } else {
+        state.activeAmbients.add(type);
+        startAmbientSound(type);
+      }
+      syncMusicUIState();
+      updateAmbientGroupSprings(null, null);
+    }
+
+    function syncMusicUIState() {
+      const anyAudioActive = state.stationPlaying || state.activeAmbients.size > 0;
+      if (anyAudioActive) {
+        musicBtn.style.backgroundColor = 'var(--md-primary-container)';
+        musicBtn.style.color = 'var(--md-on-primary-container)';
+        musicEq.classList.remove('hidden');
+        musicEq.classList.add('flex', 'eq-playing');
+      } else {
+        musicBtn.style.backgroundColor = 'var(--md-secondary-container)';
+        musicBtn.style.color = 'var(--md-on-secondary-container)';
+        musicEq.classList.add('hidden');
+        musicEq.classList.remove('flex', 'eq-playing');
+      }
+
+      const playBtnSpring = springElements.get(stationPlayPauseBtn);
+      if (state.stationPlaying) {
+        stationPlayIcon.innerHTML = `
+          <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"></rect>
+          <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"></rect>
+        `;
+        if (playBtnSpring) {
+          playBtnSpring.baseRadii = [12, 12, 12, 12];
+          [playBtnSpring.rTL, playBtnSpring.rTR, playBtnSpring.rBR, playBtnSpring.rBL].forEach(r => r.setTarget(12));
+        }
+      } else {
+        stationPlayIcon.innerHTML = `<polygon points="6 3 20 12 6 21 6 3" fill="currentColor"></polygon>`;
+        if (playBtnSpring) {
+          playBtnSpring.baseRadii = [18, 18, 18, 18];
+          [playBtnSpring.rTL, playBtnSpring.rTR, playBtnSpring.rBR, playBtnSpring.rBL].forEach(r => r.setTarget(18));
+        }
+      }
+
+      ambientBtns.forEach(btn => {
+        const key = btn.getAttribute('data-ambient');
+        if (state.activeAmbients.has(key)) {
+          btn.style.backgroundColor = 'var(--md-primary)';
+          btn.style.color = 'var(--md-on-primary)';
+          btn.style.borderColor = 'var(--md-primary)';
+        } else {
+          btn.style.backgroundColor = 'var(--md-surface)';
+          btn.style.color = 'var(--md-text-main)';
+          btn.style.borderColor = 'var(--md-outline)';
+        }
+      });
+
+      updateControlRowSprings();
+      wakeSpringLoop();
+    }
+
+    // =========================================================================
+    // 7. M3 EXPRESSIVE WAVY PROGRESS BAR (60FPS SYNC + SEEK + CROSSFADE)
+    // =========================================================================
+    const wavyCtx = wavyProgressCanvas.getContext('2d');
+    let isSeekingWavy = false;
+
+    function resizeWavyCanvas() {
+      const rect = wavyProgressContainer.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const dpr = window.devicePixelRatio || 1;
+      wavyProgressCanvas.width = Math.round(rect.width * dpr);
+      wavyProgressCanvas.height = Math.round(rect.height * dpr);
+      wavyCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resizeWavyCanvas);
+
+    function animateWavyProgress(now) {
+      // 1. Handle 60fps Equal-Power Dual-Deck Crossfade
+      if (isCrossfading && state.stationPlaying) {
+        const elapsed = now - crossfadeStartPerf;
+        const p = Math.max(0, Math.min(1, elapsed / CROSSFADE_DURATION_MS));
+        activeDeckFadeMultiplier = Math.sin(p * Math.PI * 0.5);
+        inactiveDeckFadeMultiplier = Math.cos(p * Math.PI * 0.5);
+
+        activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, activeDeckFadeMultiplier);
+        if (!inactiveDeck.paused) {
+          inactiveDeck.volume = computeDeckVolume(inactiveDeck, state.masterVolume, inactiveDeckFadeMultiplier);
+        }
+
+        if (p >= 1) {
+          isCrossfading = false;
+          activeDeckFadeMultiplier = 1.0;
+          inactiveDeckFadeMultiplier = 0.0;
+          activeDeck.volume = computeDeckVolume(activeDeck, state.masterVolume, 1.0);
+          try {
+            inactiveDeck.pause();
+            inactiveDeck.currentTime = 0;
+          } catch (e) {}
+        }
+      }
+
+      // 2. Sync progress from activeDeck (plays all the way to 100% natural 'ended' event without premature cut-off #2)
+      if (state.stationPlaying && !isSeekingWavy && now > seekLockUntil) {
+        const dur = activeDeck.duration;
+        if (!activeDeck.paused && !activeDeck.seeking && dur > 5 && isFinite(dur)) {
+          state.stationProgress = Math.max(0, Math.min(1, activeDeck.currentTime / dur));
+        }
+      }
+
+      // 3. Render M3 Expressive Wavy Progress Bar using cached theme tokens (zero getComputedStyle thrashing)
+      if (state.musicPopoverOpen) {
+        const rect = wavyProgressContainer.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
+        if (w > 0 && h > 0) {
+          const dpr = window.devicePixelRatio || 1;
+          if (wavyProgressCanvas.width !== Math.round(w * dpr)) {
+            resizeWavyCanvas();
+          }
+          wavyCtx.clearRect(0, 0, w, h);
+
+          const targetAmp = state.stationPlaying ? 4.2 : 0;
+          state.wavyAmp += (targetAmp - state.wavyAmp) * 0.14;
+          if (state.stationPlaying) {
+            state.wavyPhase += 0.10;
+          }
+
+          const tokens = getThemeTokens();
+          const primaryColor = tokens.primary;
+          const trackColor = tokens.track;
+
+          const padX = 8;
+          const usableW = w - padX * 2;
+          const midY = h / 2;
+          const clampedProg = Math.max(0, Math.min(1, state.stationProgress));
+          const splitX = padX + usableW * clampedProg;
+
+          wavyProgressContainer.setAttribute('aria-valuenow', String(Math.round(clampedProg * 100)));
+
+          // Unplayed Flat Track
+          if (splitX < w - padX) {
+            wavyCtx.strokeStyle = trackColor;
+            wavyCtx.lineWidth = 4;
+            wavyCtx.lineCap = 'round';
+            wavyCtx.beginPath();
+            wavyCtx.moveTo(splitX + 6, midY);
+            wavyCtx.lineTo(w - padX, midY);
+            wavyCtx.stroke();
+          }
+
+          // Played M3 Expressive Sinusoidal Wave
+          if (splitX > padX) {
+            wavyCtx.strokeStyle = primaryColor;
+            wavyCtx.lineWidth = 4;
+            wavyCtx.lineCap = 'round';
+            wavyCtx.beginPath();
+            for (let x = padX; x <= splitX; x += 2) {
+              const y = midY + Math.sin((x - padX) * 0.22 - state.wavyPhase) * state.wavyAmp;
+              if (x === padX) wavyCtx.moveTo(x, y);
+              else wavyCtx.lineTo(x, y);
+            }
+            wavyCtx.stroke();
+          }
+
+          // Expressive Squircle Thumb Indicator
+          wavyCtx.fillStyle = primaryColor;
+          const thumbW = isSeekingWavy ? 9 : 6;
+          const thumbH = isSeekingWavy ? 22 : 16;
+          wavyCtx.beginPath();
+          wavyCtx.roundRect(splitX - thumbW / 2, midY - thumbH / 2, thumbW, thumbH, 4);
+          wavyCtx.fill();
+        }
+      }
+      requestAnimationFrame(animateWavyProgress);
+    }
+    requestAnimationFrame(animateWavyProgress);
+
+    function updateVisualSeekFromPointer(e) {
+      const rect = wavyProgressContainer.getBoundingClientRect();
+      if (rect.width <= 0) return state.stationProgress;
+      const padX = 8;
+      const usableW = Math.max(1, rect.width - padX * 2);
+      const rel = Math.max(0, Math.min(1, (e.clientX - rect.left - padX) / usableW));
+      state.stationProgress = rel;
+      return rel;
+    }
+
+    let endOfTrackHoldTimer = null;
+    function commitSeekToActiveDeck(rel) {
+      if (endOfTrackHoldTimer) {
+        clearTimeout(endOfTrackHoldTimer);
+        endOfTrackHoldTimer = null;
+      }
+      const clampedRel = Math.max(0, Math.min(1, rel));
+      state.stationProgress = clampedRel;
+      seekLockUntil = performance.now() + 850;
+      const dur = activeDeck.duration;
+
+      // Allow user to pull the progress bar all the way to the very end (100%):
+      // Hold at 100% briefly so the full wave is visible, then advance cleanly if playing.
+      if (clampedRel >= 0.995) {
+        state.stationProgress = 1;
+        if (state.stationPlaying) {
+          try { activeDeck.pause(); } catch (e) {}
+          endOfTrackHoldTimer = setTimeout(() => {
+            endOfTrackHoldTimer = null;
+            if (state.stationPlaying && !isSeekingWavy) {
+              transitionToTrack(pickRandomNextTrackIndex());
+            }
+          }, 450);
+        } else if (dur && isFinite(dur) && dur > 1) {
+          try { activeDeck.currentTime = dur; } catch (e) {}
+          pendingSeekRatio = 1;
+        } else {
+          pendingSeekRatio = 1;
+        }
+        return;
+      }
+
+      if (dur && isFinite(dur) && dur > 1) {
+        try {
+          activeDeck.currentTime = clampedRel * dur;
+          pendingSeekRatio = null;
+          if (state.stationPlaying && activeDeck.paused) {
+            activeDeck.play().catch(() => {});
+          }
+        } catch (err) {
+          pendingSeekRatio = clampedRel;
+        }
+      } else {
+        pendingSeekRatio = clampedRel;
+      }
+    }
+
+    wavyProgressContainer.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isSeekingWavy = true;
+      wavyProgressContainer.setPointerCapture(e.pointerId);
+      updateVisualSeekFromPointer(e);
+    });
+
+    wavyProgressContainer.addEventListener('pointermove', (e) => {
+      if (!isSeekingWavy) return;
+      if (e.pointerType === 'mouse' && e.buttons !== 1) {
+        isSeekingWavy = false;
+        commitSeekToActiveDeck(state.stationProgress);
+        return;
+      }
+      updateVisualSeekFromPointer(e);
+    });
+
+    function finishWavySeek() {
+      if (!isSeekingWavy) return;
+      isSeekingWavy = false;
+      commitSeekToActiveDeck(state.stationProgress);
+    }
+    wavyProgressContainer.addEventListener('pointerup', finishWavySeek);
+    wavyProgressContainer.addEventListener('pointercancel', finishWavySeek);
+
+    // =========================================================================
+    // 8. PIXEL VOLUME SLIDER (Simultaneously Controls Station & Ambient Volume)
+    // =========================================================================
+    let isDraggingVolume = false;
+
+    function setMasterVolume(val) {
+      const clamped = Math.max(0, Math.min(1, val));
+      state.masterVolume = clamped;
+      const pct = Math.round(clamped * 100);
+      pixelVolumeLabel.textContent = `${pct}%`;
+      pixelVolumeSlider.setAttribute('aria-valuenow', String(pct));
+      pixelVolumeFill.style.width = `${Math.max(14, pct)}%`;
+
+      if (pct === 0) {
+        pixelVolumeIcon.innerHTML = `
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        `;
+      } else if (pct < 50) {
+        pixelVolumeIcon.innerHTML = `
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        `;
+      } else {
+        pixelVolumeIcon.innerHTML = `
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        `;
+      }
+
+      activeDeck.volume = computeDeckVolume(activeDeck, clamped, activeDeckFadeMultiplier);
+      if (isCrossfading && !inactiveDeck.paused) {
+        inactiveDeck.volume = computeDeckVolume(inactiveDeck, clamped, inactiveDeckFadeMultiplier);
+      }
+      Object.values(ambientPlayers).forEach(player => {
+        player.updateVolume(clamped);
+      });
+    }
+
+    function updateVolumeFromPointer(e) {
+      const rect = pixelVolumeSlider.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const rel = (e.clientX - rect.left) / rect.width;
+      setMasterVolume(rel);
+    }
+
+    pixelVolumeSlider.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingVolume = true;
+      pixelVolumeSlider.setPointerCapture(e.pointerId);
+      updateVolumeFromPointer(e);
+    });
+
+    pixelVolumeSlider.addEventListener('pointermove', (e) => {
+      if (!isDraggingVolume) return;
+      if (e.pointerType === 'mouse' && e.buttons !== 1) {
+        isDraggingVolume = false;
+        return;
+      }
+      updateVolumeFromPointer(e);
+    });
+
+    function stopVolumeDrag() {
+      isDraggingVolume = false;
+    }
+    pixelVolumeSlider.addEventListener('pointerup', stopVolumeDrag);
+    pixelVolumeSlider.addEventListener('pointercancel', stopVolumeDrag);
+    window.addEventListener('pointerup', () => {
+      isDraggingVolume = false;
+      if (isSeekingWavy) {
+        isSeekingWavy = false;
+        commitSeekToActiveDeck(state.stationProgress);
+      }
+    });
+
+    // Floating Music Card Open/Close Logic
+    registerSpringElement(musicPopoverCard, {
+      radii: [32, 32, 32, 32],
+      autoBind: false
+    });
+
+    function toggleMusicPopover() {
+      state.musicPopoverOpen = !state.musicPopoverOpen;
+      const cardSpring = springElements.get(musicPopoverCard);
+      if (state.musicPopoverOpen) {
+        musicPopoverCard.classList.remove('hidden');
+        resizeWavyCanvas();
+        if (cardSpring) {
+          cardSpring.scaleX.current = 0.86;
+          cardSpring.scaleY.current = 0.86;
+          cardSpring.ty.current = 16;
+          cardSpring.scaleX.setTarget(1, 0.04);
+          cardSpring.scaleY.setTarget(1, 0.04);
+          cardSpring.ty.setTarget(0);
+          wakeSpringLoop();
+        }
+      } else {
+        musicPopoverCard.classList.add('hidden');
+      }
+      syncMusicUIState();
+    }
+
+    musicBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMusicPopover();
+    });
+
+    stationPlayPauseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleStationPlayPause();
+    });
+
+    stationNextBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      transitionToTrack(pickRandomNextTrackIndex());
+    });
+
+    ambientBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleAmbientOption(btn.getAttribute('data-ambient'));
+      });
+    });
+
+    document.addEventListener('pointerdown', (e) => {
+      if (state.musicPopoverOpen && !musicPopoverCard.contains(e.target) && !musicBtn.contains(e.target)) {
+        state.musicPopoverOpen = false;
+        musicPopoverCard.classList.add('hidden');
+        syncMusicUIState();
+      }
+    });
+
+    // =========================================================================
+    // 9. TIMER & PROGRESS RING LOGIC
+    // =========================================================================
+    function formatTime(totalSecs) {
+      const mins = Math.floor(totalSecs / 60);
+      const secs = totalSecs % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function updateClockUI() {
+      timerDisplay.textContent = formatTime(state.timeLeftSeconds);
+
+      const ratio = state.totalSecondsForSession > 0
+        ? state.timeLeftSeconds / state.totalSecondsForSession
+        : 0;
+      const offset = RING_CIRCUMFERENCE * (1 - ratio);
+      progressRing.style.strokeDasharray = `${RING_CIRCUMFERENCE}`;
+      progressRing.style.strokeDashoffset = `${offset}`;
+
+      if (state.isRunning) {
+        startBtnLabel.textContent = '暂停';
+        startBtnIcon.innerHTML = `
+          <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"></rect>
+          <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"></rect>
+        `;
+      } else {
+        const isStarted = state.timeLeftSeconds < state.totalSecondsForSession;
+        startBtnLabel.textContent = isStarted ? '继续' : '开始';
+        startBtnIcon.innerHTML = `<polygon points="6 3 20 12 6 21 6 3" fill="currentColor"></polygon>`;
+      }
+
+      updateControlRowSprings();
+    }
+
+    function switchMode(newMode) {
+      if (state.isRunning) {
+        pauseTimer();
+      }
+      state.mode = newMode;
+      document.body.setAttribute('data-mode', newMode);
+
+      const mins = state.durations[newMode];
+      state.totalSecondsForSession = mins * 60;
+      state.timeLeftSeconds = mins * 60;
+      state.timerEndTimestamp = null;
+
+      const modeButtons = [
+        { key: 'focus', btn: modeFocusBtn },
+        { key: 'shortBreak', btn: modeShortBtn },
+        { key: 'longBreak', btn: modeLongBtn }
+      ];
+      modeButtons.forEach(({ key, btn }) => {
+        if (key === newMode) {
+          btn.style.backgroundColor = 'var(--md-primary)';
+          btn.style.color = 'var(--md-on-primary)';
+        } else {
+          btn.style.backgroundColor = 'transparent';
+          btn.style.color = 'var(--md-text-muted)';
+        }
+      });
+
+      pencilEditDurationBtn.style.display = newMode === 'focus' ? 'flex' : 'none';
+
+      updateModeGroupSprings(null, null);
+      updateClockUI();
+    }
+
+    function syncTimerFromWallClock() {
+      if (!state.isRunning || !state.timerEndTimestamp) return;
+      const remainingMs = state.timerEndTimestamp - Date.now();
+      if (remainingMs <= 0) {
+        state.timeLeftSeconds = 0;
+        updateClockUI();
+        handleSessionComplete();
+      } else {
+        const nextSecs = Math.max(0, Math.ceil(remainingMs / 1000));
+        if (nextSecs !== state.timeLeftSeconds) {
+          state.timeLeftSeconds = nextSecs;
+          updateClockUI();
+        }
+      }
+    }
+
+    function startTimer() {
+      if (state.isRunning) return;
+      state.isRunning = true;
+      state.timerEndTimestamp = Date.now() + (state.timeLeftSeconds * 1000);
+      requestWakeLockAndKeepAlive();
+      updateClockUI();
+
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      state.timerInterval = setInterval(syncTimerFromWallClock, 250);
+    }
+
+    function pauseTimer() {
+      if (state.isRunning && state.timerEndTimestamp) {
+        state.timeLeftSeconds = Math.max(0, Math.ceil((state.timerEndTimestamp - Date.now()) / 1000));
+      }
+      state.isRunning = false;
+      state.timerEndTimestamp = null;
+      if (state.timerInterval) {
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+      }
+      updateClockUI();
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      const mins = state.durations[state.mode];
+      state.totalSecondsForSession = mins * 60;
+      state.timeLeftSeconds = mins * 60;
+      state.timerEndTimestamp = null;
+      updateClockUI();
+    }
+
+    function handleSessionComplete() {
+      const completedMode = state.mode;
+      pauseTimer();
+      playSessionCompletionRingtone(completedMode);
+
+      // Requirement #4: ONLY when a Focus countdown finishes does it record +1 in 「专注次数」
+      // and add the completed focus countdown duration to 「专注时长」!
+      if (completedMode === 'focus') {
+        state.completedFocusSessions += 1;
+        state.completedFocusMinutes += state.durations.focus;
+        saveDailyDataToStorage();
+        renderTasksAndOverview('sessionComplete');
+      }
+
+      const mins = state.durations[state.mode];
+      state.totalSecondsForSession = mins * 60;
+      state.timeLeftSeconds = mins * 60;
+      state.timerEndTimestamp = null;
+      updateClockUI();
+    }
+
+    // =========================================================================
+    // 10. TASKS & OVERVIEW DYNAMIC SYNCHRONIZATION (#3, #4)
+    //     - Task's `focusedMinutes` in 「今日任务」 is strictly the user's estimated
+    //       completion time (预计完成时间) and is NEVER mixed into 「专注时长」 or 「专注次数」.
+    //     - 「专注次数」 only counts completed Focus timer countdowns.
+    //     - 「专注时长」 only counts actual minutes from completed Focus timer countdowns.
+    //     - 「完成任务」 only counts tasks marked as completed by the user.
+    // =========================================================================
+    function renderTasksAndOverview(changedType = null) {
+      if (state.tasks.length === 0) {
+        taskListContainer.innerHTML = `
+          <div class="h-full min-h-[120px] flex items-center justify-center text-sm font-semibold" style="color: var(--md-text-muted);">
+            暂无任务
+          </div>
+        `;
+      } else {
+        taskListContainer.innerHTML = state.tasks.map(task => {
+          return `
+            <div class="py-3.5 px-2 flex items-center justify-between gap-4">
+              <div class="flex items-center gap-3.5 min-w-0 flex-1">
+                <button type="button" data-action="toggle-complete" data-id="${task.id}"
+                        class="task-check-btn w-6 h-6 flex items-center justify-center border-2 shrink-0 m3-Interactive"
+                        style="border-radius: ${task.completed ? '12px' : '8px'}; border-color: var(--md-primary); background-color: ${task.completed ? 'var(--md-primary)' : 'transparent'}; color: var(--md-on-primary);">
+                  ${task.completed ? `
+                    <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  ` : ''}
+                </button>
+
+                <span class="font-bold text-sm sm:text-base truncate ${task.completed ? 'line-through opacity-55' : ''}">
+                  ${escapeHtml(task.name)}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-3 shrink-0">
+                <span class="text-sm font-extrabold clock-digits" style="color: var(--md-primary);">
+                  ${task.focusedMinutes} 分钟
+                </span>
+
+                <button type="button" data-action="delete-task" data-id="${task.id}"
+                        class="task-del-btn w-8 h-8 flex items-center justify-center m3-Interactive"
+                        style="border-radius: 12px; background-color: var(--md-surface); color: var(--md-text-muted);"
+                        aria-label="删除任务">
+                  <svg class="w-4 h-4 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        taskListContainer.querySelectorAll('.task-check-btn').forEach(btn => {
+          const isDone = btn.querySelector('svg') !== null;
+          registerSpringElement(btn, {
+            radii: isDone ? [12, 12, 12, 12] : [8, 8, 8, 8],
+            hoverRadii: [12, 12, 12, 12],
+            activeRadii: [6, 6, 6, 6],
+            hoverScale: 1.12,
+            activeScaleX: 1.2,
+            activeScaleY: 0.85,
+            magnetic: 0.08
+          });
+        });
+        taskListContainer.querySelectorAll('.task-del-btn').forEach(btn => {
+          registerSpringElement(btn, {
+            radii: [12, 12, 12, 12],
+            hoverRadii: [16, 16, 16, 16],
+            activeRadii: [9, 9, 9, 9],
+            hoverScale: 1.1,
+            activeScaleX: 1.15,
+            activeScaleY: 0.88,
+            magnetic: 0.08
+          });
+        });
+      }
+
+      const completedTasksCount = state.tasks.filter(t => t.completed).length;
+
+      statCompletedSessions.textContent = String(state.completedFocusSessions);
+      statFocusMinutes.textContent = String(state.completedFocusMinutes);
+      statCompletedTasks.textContent = String(completedTasksCount);
+
+      if (changedType === 'sessionComplete') {
+        pulseElementSpring(overviewCardSessions, 0.07, 0.07);
+        pulseElementSpring(overviewCardMinutes, 0.07, 0.07);
+      } else if (changedType === 'complete' || changedType === 'delete') {
+        pulseElementSpring(overviewCardTasks, 0.07, 0.07);
+      } else if (changedType === 'all') {
+        pulseElementSpring(overviewCardSessions, 0.06, 0.06);
+        pulseElementSpring(overviewCardMinutes, 0.06, 0.06);
+        pulseElementSpring(overviewCardTasks, 0.06, 0.06);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // =========================================================================
+    // 11. MODAL SCROLL LOCK & SPRING DIALOG ANIMATIONS
+    // =========================================================================
+    registerSpringElement(customDurationDialog, { radii: [32, 32, 32, 32], autoBind: false });
+    registerSpringElement(addTaskDialog, { radii: [32, 32, 32, 32], autoBind: false });
+
+    function lockBodyScroll() {
+      document.body.classList.add('modal-open');
+    }
+
+    function unlockBodyScroll() {
+      document.body.classList.remove('modal-open');
+    }
+
+    function highlightPresetButtons(val) {
+      presetBtns.forEach(btn => {
+        const presetVal = parseInt(btn.getAttribute('data-preset-min'), 10);
+        if (presetVal === val) {
+          btn.style.backgroundColor = 'var(--md-primary-container)';
+          btn.style.color = 'var(--md-on-primary-container)';
+        } else {
+          btn.style.backgroundColor = 'var(--md-surface)';
+          btn.style.color = 'var(--md-text-main)';
+        }
+      });
+      updatePresetGroupSprings(null, null);
+    }
+
+    function openCustomDurationModal() {
+      customFocusInput.value = state.durations.focus;
+      highlightPresetButtons(state.durations.focus);
+      customDurationModal.classList.remove('hidden');
+      customDurationModal.classList.add('flex');
+      lockBodyScroll();
+
+      const dSpring = springElements.get(customDurationDialog);
+      if (dSpring) {
+        dSpring.scaleX.current = 0.88;
+        dSpring.scaleY.current = 0.88;
+        dSpring.scaleX.setTarget(1, 0.04);
+        dSpring.scaleY.setTarget(1, 0.04);
+        wakeSpringLoop();
+      }
+      setTimeout(() => customFocusInput.focus(), 40);
+    }
+
+    function hideCustomDurationModal() {
+      customDurationModal.classList.add('hidden');
+      customDurationModal.classList.remove('flex');
+      unlockBodyScroll();
+    }
+
+    function openAddTaskModal() {
+      modalTaskTitle.value = '';
+      modalTaskFocused.value = String(state.durations.focus);
+      addTaskModal.classList.remove('hidden');
+      addTaskModal.classList.add('flex');
+      lockBodyScroll();
+
+      const dSpring = springElements.get(addTaskDialog);
+      if (dSpring) {
+        dSpring.scaleX.current = 0.88;
+        dSpring.scaleY.current = 0.88;
+        dSpring.scaleX.setTarget(1, 0.04);
+        dSpring.scaleY.setTarget(1, 0.04);
+        wakeSpringLoop();
+      }
+      setTimeout(() => modalTaskTitle.focus(), 40);
+    }
+
+    function hideAddTaskModal() {
+      addTaskModal.classList.add('hidden');
+      addTaskModal.classList.remove('flex');
+      unlockBodyScroll();
+    }
+
+    // =========================================================================
+    // 12. EVENT LISTENERS & INITIALIZATION
+    // =========================================================================
+    modeFocusBtn.addEventListener('click', () => switchMode('focus'));
+    modeShortBtn.addEventListener('click', () => switchMode('shortBreak'));
+    modeLongBtn.addEventListener('click', () => switchMode('longBreak'));
+
+    startBtn.addEventListener('click', () => {
+      if (state.isRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    resetBtn.addEventListener('click', resetTimer);
+
+    pencilEditDurationBtn.addEventListener('click', openCustomDurationModal);
+    closeDurationModal.addEventListener('click', hideCustomDurationModal);
+    cancelDurationBtn.addEventListener('click', hideCustomDurationModal);
+
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const minVal = parseInt(btn.getAttribute('data-preset-min'), 10);
+        customFocusInput.value = minVal;
+        highlightPresetButtons(minVal);
+      });
+    });
+
+    customFocusInput.addEventListener('input', () => {
+      highlightPresetButtons(parseInt(customFocusInput.value, 10));
+    });
+
+    saveDurationBtn.addEventListener('click', () => {
+      const val = Math.min(180, Math.max(1, parseInt(customFocusInput.value, 10) || 25));
+      state.durations.focus = val;
+      saveDailyDataToStorage();
+      hideCustomDurationModal();
+      switchMode('focus');
+    });
+
+    addTaskTopBtn.addEventListener('click', openAddTaskModal);
+    closeTaskModal.addEventListener('click', hideAddTaskModal);
+    cancelTaskModalBtn.addEventListener('click', hideAddTaskModal);
+
+    modalTaskForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = modalTaskTitle.value.trim();
+      if (!name) return;
+      const focusedMinutes = Math.max(1, parseInt(modalTaskFocused.value, 10) || state.durations.focus);
+      const newTask = {
+        id: 'task-' + Date.now(),
+        name,
+        focusedMinutes,
+        completed: false
+      };
+      state.tasks.unshift(newTask);
+      saveDailyDataToStorage();
+      hideAddTaskModal();
+      renderTasksAndOverview('add');
+    });
+
+    taskListContainer.addEventListener('click', (e) => {
+      const actionEl = e.target.closest('[data-action]');
+      if (!actionEl) return;
+      const action = actionEl.getAttribute('data-action');
+      const taskId = actionEl.getAttribute('data-id');
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      if (action === 'toggle-complete') {
+        task.completed = !task.completed;
+        saveDailyDataToStorage();
+        renderTasksAndOverview('complete');
+      } else if (action === 'delete-task') {
+        state.tasks = state.tasks.filter(t => t.id !== taskId);
+        saveDailyDataToStorage();
+        renderTasksAndOverview('delete');
+      }
+    });
+
+    [customDurationModal, addTaskModal].forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          hideCustomDurationModal();
+          hideAddTaskModal();
+        }
+      });
+      modal.addEventListener('wheel', (e) => {
+        e.preventDefault();
+      }, { passive: false });
+      modal.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+      }, { passive: false });
+    });
+
+    // =========================================================================
+    // 13. ALWAYS-ONLINE CAMPUS WI-FI KEEP-ALIVE & SCREEN WAKE LOCK DAEMON (#6):
+    //     Prevents MacBook / campus Wi-Fi from dropping connection or suspending
+    //     the web app when the screen dims or locks:
+    //     1. Screen Wake Lock API (`navigator.wakeLock.request('screen')`)
+    //     2. Sub-audible Web Audio keep-alive node to prevent macOS App Nap
+    //     3. Periodic 18s HTTP keep-alive heartbeat ping (`keepalive: true`)
+    //     4. Instant audio stream & wall-clock timer recovery on `online` / `visibilitychange`
+    // =========================================================================
+    let wakeLockSentinel = null;
+    let keepAliveAudioStarted = false;
+
+    async function requestWakeLockAndKeepAlive() {
+      // 1. Request Screen Wake Lock so MacBook screen stays awake
+      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+        try {
+          if (!wakeLockSentinel || wakeLockSentinel.released) {
+            wakeLockSentinel = await navigator.wakeLock.request('screen');
+          }
+        } catch (e) {}
+      }
+
+      // 2. Start ultra-quiet (-90 dBFS) Web Audio keep-alive oscillator so macOS never puts tab or Wi-Fi socket into App Nap
+      try {
+        ensureAudioCtx();
+        if (audioCtx && !keepAliveAudioStarted) {
+          const osc = audioCtx.createOscillator();
+          const silentGain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 30;
+          silentGain.gain.value = 0.00001;
+          osc.connect(silentGain);
+          silentGain.connect(audioCtx.destination);
+          osc.start();
+          keepAliveAudioStarted = true;
+        }
+      } catch (e) {}
+    }
+
+    function recoverAudioAndTimerAfterWakeOrReconnect() {
+      syncTimerFromWallClock();
+      requestWakeLockAndKeepAlive();
+
+      // Resume Station music if it was playing and got interrupted by network blip
+      if (state.stationPlaying && activeDeck && activeDeck.paused) {
+        activeDeck.play().catch(() => {
+          transitionToTrack(pickRandomNextTrackIndex());
+        });
+      }
+
+      // Resume all active Ambient sounds if any got paused
+      state.activeAmbients.forEach(type => {
+        if (!ambientPlayers[type]) {
+          startAmbientSound(type);
+        } else if (ambientPlayers[type].resume) {
+          ambientPlayers[type].resume();
+        }
+      });
+
+      // Top up live music pool if needed
+      if (state.onlineTracks.length < 15) {
+        replenishLiveMusicPool();
+      }
+    }
+
+    // Periodic 18-second Campus Wi-Fi Keep-Alive Heartbeat Ping
+    // Keeps NAT states and campus Wi-Fi 802.1X sessions active continuously
+    setInterval(() => {
+      syncTimerFromWallClock();
+      const pingUrl = `https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg?keepalive=${Date.now()}`;
+      fetch(pingUrl, {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-store',
+        keepalive: true
+      }).catch(() => {});
+    }, 18000);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        recoverAudioAndTimerAfterWakeOrReconnect();
+      }
+    });
+
+    window.addEventListener('online', () => {
+      recoverAudioAndTimerAfterWakeOrReconnect();
+    });
+
+    window.addEventListener('focus', () => {
+      recoverAudioAndTimerAfterWakeOrReconnect();
+    });
+
+    ['pointerdown', 'keydown'].forEach(evt => {
+      document.addEventListener(evt, () => {
+        requestWakeLockAndKeepAlive();
+      }, { once: false, passive: true });
+    });
+
+    // Load Today's Persisted Data (or auto-reset if past 00:00) and Render
+    loadDailyDataFromStorage();
+    updateThemeSwitchTargets();
+    requestAnimationFrame(animateThemeSwitch);
+    renderTasksAndOverview();
+    updateClockUI();
+  </script>
+</body>
+</html>
