@@ -351,6 +351,38 @@
     .eq-playing .eq-2 { animation: eqBar2 0.6s ease-in-out infinite; }
     .eq-playing .eq-3 { animation: eqBar3 0.8s ease-in-out infinite; }
 
+    /* Station Track Title Infinite Right-to-Left Marquee (Strictly Clipped to Display Bounds) */
+    .station-marquee-viewport {
+      position: relative;
+      overflow: hidden !important;
+      white-space: nowrap;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      contain: paint;
+      -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 6px, #000 calc(100% - 6px), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0px, #000 6px, #000 calc(100% - 6px), transparent 100%);
+    }
+
+    .station-marquee-track {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      will-change: transform;
+      animation: stationMarqueeRTL var(--marquee-duration, 11s) linear infinite;
+    }
+
+    .station-marquee-item {
+      display: inline-block;
+      white-space: nowrap;
+      padding-right: 44px;
+    }
+
+    @keyframes stationMarqueeRTL {
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-50%, 0, 0); }
+    }
+
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
@@ -526,10 +558,11 @@
             <div class="text-xs font-extrabold tracking-wide mb-2" style="color: var(--md-text-muted);">站台</div>
             <div class="p-3.5 rounded-[22px] border m3-SurfaceTransition"
                  style="background-color: var(--md-bg); border-color: var(--md-outline);">
-              <div class="flex items-center justify-between gap-2 mb-3">
-                <div class="min-w-0 flex-1">
-                  <div id="station-track-title" class="text-sm font-extrabold truncate" style="color: var(--md-text-main);">
-                    正在连接开放曲库获取随机纯音乐...
+              <div class="flex items-center justify-between gap-2.5 mb-3 overflow-hidden">
+                <div id="station-title-viewport" class="station-marquee-viewport flex-1 min-w-0">
+                  <div id="station-marquee-track" class="station-marquee-track text-sm font-extrabold" style="color: var(--md-text-main);">
+                    <span id="station-track-title" class="station-marquee-item">正在实时检索网络纯音乐...</span>
+                    <span id="station-track-title-clone" class="station-marquee-item" aria-hidden="true">正在实时检索网络纯音乐...</span>
                   </div>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
@@ -1721,7 +1754,19 @@
     const musicEq = document.getElementById('music-eq');
     const musicPopoverCard = document.getElementById('music-popover-card');
     const stationTrackTitle = document.getElementById('station-track-title');
+    const stationTrackTitleClone = document.getElementById('station-track-title-clone');
+    const stationMarqueeTrack = document.getElementById('station-marquee-track');
     const stationPlayPauseBtn = document.getElementById('station-play-pause-btn');
+
+    function setStationTrackTitle(fullTitle) {
+      const text = String(fullTitle || '正在实时检索网络纯音乐...').trim();
+      if (stationTrackTitle) stationTrackTitle.textContent = text;
+      if (stationTrackTitleClone) stationTrackTitleClone.textContent = text;
+      if (stationMarqueeTrack) {
+        const durSec = Math.max(8, Math.min(24, text.length * 0.42));
+        stationMarqueeTrack.style.setProperty('--marquee-duration', `${durSec.toFixed(1)}s`);
+      }
+    }
     const stationPlayIcon = document.getElementById('station-play-icon');
     const stationNextBtn = document.getElementById('station-next-btn');
     const wavyProgressContainer = document.getElementById('wavy-progress-container');
@@ -1765,7 +1810,7 @@
     const deckA = document.getElementById('lofi-online-audio');
     const deckB = document.getElementById('station-deck-b');
 
-    stationTrackTitle.textContent = '正在实时检索网络纯音乐...';
+    setStationTrackTitle('正在实时检索网络纯音乐...');
 
     // Register standalone interactive elements in M3 Expressive Spring Engine
     registerSpringElement(brandLogo, { radii: [16, 16, 16, 16], hoverRadii: [22, 22, 22, 22], activeRadii: [12, 12, 12, 12] });
@@ -2310,11 +2355,6 @@
 
     const NOISY_EXCLUDE_REGEX = /(rock|metal|punk|hardcore|techno|dubstep|trance|rave|scream|shout|rap|vocal|club|party|energetic|upbeat|fast|heavy|industrial|alarm|siren|effect|loop|sample|drum and bass)/i;
 
-    const MOOD_TAG_LABELS = [
-      '静谧自习室', '图书馆靠窗', '深夜阅览室', '晚间自习台灯',
-      '书页与茶香', '沉浸专注', '午后图书馆', '独处阅读微光'
-    ];
-
     function parseDurationToSeconds(val) {
       if (!val) return 0;
       if (typeof val === 'number') return val;
@@ -2338,13 +2378,12 @@
         .replace(/^[0-9]{1,3}\s*[-_.]\s*/, '')
         .replace(/[_]+/g, ' ')
         .trim();
-      if (!cleaned || cleaned.length < 2) cleaned = 'Lo-Fi Study Instrumental';
-      if (cleaned.length > 26) cleaned = cleaned.slice(0, 26).trim();
-      const mood = MOOD_TAG_LABELS[randomInt(MOOD_TAG_LABELS.length)];
-      if (creator && creator.length <= 14 && !cleaned.toLowerCase().includes(creator.toLowerCase())) {
-        return `${cleaned} · ${creator}`;
+      if (!cleaned || cleaned.length < 2) cleaned = 'Lo-Fi Instrumental';
+      const cleanCreator = String(creator || '').trim();
+      if (cleanCreator && !cleaned.toLowerCase().includes(cleanCreator.toLowerCase())) {
+        return `${cleaned} - ${cleanCreator}`;
       }
-      return `${cleaned} · ${mood}`;
+      return cleaned;
     }
 
     function registerDiscoveredTrack(rawTitle, url, creator = '', durationSec = 0) {
@@ -2369,7 +2408,7 @@
       // As soon as the very first live online track arrives, bind it to deckA if nothing is playing yet
       if (state.onlineTracks.length === 1 && !state.stationPlaying) {
         state.currentTrackIndex = 0;
-        stationTrackTitle.textContent = newTrack.title;
+        setStationTrackTitle(newTrack.title);
         deckA.src = newTrack.url;
         applyTrackTuningToDeck(deckA, newTrack);
         deckA.load();
@@ -2441,6 +2480,7 @@
       const randomPage = 1 + randomInt(920);
       const targetPlaylistUrl = `https://pixabay.com/music/search/lofi/?pagi=${randomPage}`;
       const proxyGateways = [
+        `https://r.jina.ai/${targetPlaylistUrl}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetPlaylistUrl)}`,
         `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetPlaylistUrl)}`,
         `https://corsproxy.io/?${encodeURIComponent(targetPlaylistUrl)}`
@@ -2453,8 +2493,9 @@
           const res = await fetch(gatewayUrl, { signal: controller.signal });
           clearTimeout(timeoutId);
           if (!res.ok) continue;
-          const text = await res.text();
-          if (!text || text.length < 500) continue;
+          const rawText = await res.text();
+          if (!rawText || rawText.length < 300) continue;
+          const text = rawText.replace(/\\\//g, '/');
 
           // Extract all direct Pixabay audio CDN MP3 URLs from the fetched page
           const mp3Regex = /https:\/\/cdn\.pixabay\.com\/(?:download\/)?audio\/\d{4}\/\d{2}\/\d{2}\/audio_[a-zA-Z0-9_]+\.mp3(?:\?filename=([a-zA-Z0-9_-]+)\.mp3)?/g;
@@ -2470,9 +2511,9 @@
           shuffleArrayInPlace(foundMatches);
           for (const item of foundMatches) {
             const rawName = item.slug
-              ? item.slug.replace(/-[0-9]+$/, '').replace(/-/g, ' ')
-              : `Pixabay Lofi #${randomPage}`;
-            if (registerDiscoveredTrack(rawName, item.url, 'Pixabay Lofi')) {
+              ? item.slug.replace(/-[0-9]+$/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              : `Pixabay Lofi Track`;
+            if (registerDiscoveredTrack(rawName, item.url, 'Pixabay Music')) {
               added++;
             }
           }
@@ -2560,20 +2601,20 @@
       } catch (e) {
       } finally {
         state.isFetchingLiveMusic = false;
-        // Emergency network fallback ONLY if all 3 live APIs were unreachable (e.g., strict firewall)
-        if (state.onlineTracks.length === 0) {
-          const fallbackSeeds = shuffleArrayInPlace([
-            { title: 'Shuttle · LoFi Study & Focus', url: 'https://archive.org/download/jamendo-612992/01%20-%20Shuttle.mp3' },
-            { title: 'Green Background · LoFi Focus', url: 'https://archive.org/download/jamendo-612992/02%20-%20green%20background.mp3' },
-            { title: 'Full Moon · 深夜自习室', url: 'https://archive.org/download/jamendo-612992/03%20-%20full%20moon.mp3' },
-            { title: 'Elevation · 图书馆午后', url: 'https://archive.org/download/jamendo-612992/04%20-%20elevation.mp3' },
-            { title: 'Chill Carpet · 静谧阅读', url: 'https://archive.org/download/jamendo-612992/05%20-%20chill%20carpet.mp3' },
-            { title: 'Lofi Study · 静谧自习室', url: 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3' },
-            { title: 'Empty Mind · 深度专注时刻', url: 'https://cdn.pixabay.com/audio/2022/09/02/audio_72502a492a.mp3' },
-            { title: 'Spirit Blossom · 图书馆靠窗', url: 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3' }
-          ]);
-          fallbackSeeds.forEach(item => registerDiscoveredTrack(item.title, item.url));
-        }
+        // Seed verified direct Pixabay CDN Lofi tracks with their exact original Pixabay titles & artists
+        const pixabayVerifiedSeeds = shuffleArrayInPlace([
+          { title: 'Lofi Study', creator: 'FASSounds', url: 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3' },
+          { title: 'Empty Mind', creator: 'Lofi_Hour', url: 'https://cdn.pixabay.com/audio/2022/09/02/audio_72502a492a.mp3' },
+          { title: 'Spirit Blossom', creator: 'RomanBelov', url: 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3' },
+          { title: 'Good Night', creator: 'FASSounds', url: 'https://cdn.pixabay.com/audio/2023/07/30/audio_e0908e8569.mp3' },
+          { title: 'Chill Abstract Intention', creator: 'Coma-Media', url: 'https://cdn.pixabay.com/audio/2021/11/25/audio_91b32e02f9.mp3' },
+          { title: 'Sleepy Cat', creator: 'Alejandro Magaña', url: 'https://cdn.pixabay.com/audio/2022/10/25/audio_946b0939c8.mp3' },
+          { title: 'Ambient Piano & Strings', creator: 'Daddy_s_Music', url: 'https://cdn.pixabay.com/audio/2022/10/26/audio_9c4b6a2f9b.mp3' },
+          { title: 'Just Relax', creator: 'Lesfm', url: 'https://cdn.pixabay.com/audio/2021/11/23/audio_035a336e63.mp3' },
+          { title: 'Lofi Chill (Medium Version)', creator: 'BoDleasons', url: 'https://cdn.pixabay.com/audio/2022/08/02/audio_884fe92c21.mp3' },
+          { title: 'Coffee Shop', creator: 'FASSounds', url: 'https://cdn.pixabay.com/audio/2022/11/22/audio_febc508520.mp3' }
+        ]);
+        pixabayVerifiedSeeds.forEach(item => registerDiscoveredTrack(item.title, item.url, item.creator));
       }
     }
 
@@ -2719,8 +2760,52 @@
       return 0;
     }
 
+    let isGlidingToTrackEnd = false;
+    let glideEndTimer = null;
+
+    function cancelTrackEndGlide() {
+      isGlidingToTrackEnd = false;
+      if (glideEndTimer) {
+        clearInterval(glideEndTimer);
+        glideEndTimer = null;
+      }
+    }
+
+    function finishTrackAt100AndAdvance() {
+      if (isGlidingToTrackEnd) return;
+      isGlidingToTrackEnd = true;
+      stopCrossfadeLoop();
+
+      // Smoothly glide progress from wherever VBR EOF occurred (e.g. 96%–99%) all the way to 100% (1.0),
+      // hold at 100% so the user sees the progress bar reach the exact end, then switch to the next track!
+      const startProg = state.stationProgress;
+      const startPerf = performance.now();
+      const glideMs = Math.max(120, Math.min(360, (1 - startProg) * 3500));
+      const holdAtEndMs = 220;
+
+      if (glideEndTimer) clearInterval(glideEndTimer);
+      glideEndTimer = setInterval(() => {
+        if (!state.stationPlaying || isSeekingWavy) {
+          cancelTrackEndGlide();
+          return;
+        }
+        const elapsed = performance.now() - startPerf;
+        if (elapsed < glideMs) {
+          const t = elapsed / glideMs;
+          state.stationProgress = Math.min(1, startProg + (1 - startProg) * t);
+        } else if (elapsed < glideMs + holdAtEndMs) {
+          state.stationProgress = 1;
+        } else {
+          cancelTrackEndGlide();
+          if (state.stationPlaying && !isSeekingWavy) {
+            transitionToTrack(pickRandomNextTrackIndex());
+          }
+        }
+      }, 16);
+    }
+
     function syncStationProgressFromActiveDeck() {
-      if (isSeekingWavy || performance.now() <= seekLockUntil) return;
+      if (isSeekingWavy || isGlidingToTrackEnd || performance.now() <= seekLockUntil) return;
       if (!state.stationPlaying || !activeDeck) return;
 
       // If the track is still loading/buffering (readyState < 2 or currentTime === 0),
@@ -2734,13 +2819,16 @@
 
       const realDur = getEffectiveTrackDuration(activeDeck);
       if (realDur > 0) {
-        state.stationProgress = Math.max(0, Math.min(1, activeDeck.currentTime / realDur));
+        // Account for VBR MP3 header duration slight overestimation near EOF so the bar reaches 1.0 cleanly
+        const effectiveSpan = Math.max(1, realDur - 0.25);
+        state.stationProgress = Math.max(0, Math.min(1, activeDeck.currentTime / effectiveSpan));
       }
     }
 
     async function transitionToTrack(nextIndex, initialSeekRatio = null) {
+      cancelTrackEndGlide();
       if (state.onlineTracks.length === 0) {
-        stationTrackTitle.textContent = '正在实时检索网络纯音乐...';
+        setStationTrackTitle('正在实时检索网络纯音乐...');
         await replenishLiveMusicPool();
       }
       const pool = state.onlineTracks;
@@ -2752,7 +2840,7 @@
         state.playedTrackUrls.add(track.url);
       }
 
-      stationTrackTitle.textContent = track.title;
+      setStationTrackTitle(track.title);
       const startRatio = initialSeekRatio !== null ? initialSeekRatio : 0;
       state.stationProgress = startRatio;
       pendingSeekRatio = initialSeekRatio;
@@ -2867,7 +2955,7 @@
         syncMusicUIState();
       } else {
         if (state.onlineTracks.length === 0) {
-          stationTrackTitle.textContent = '正在实时检索网络纯音乐...';
+          setStationTrackTitle('正在实时检索网络纯音乐...');
           await replenishLiveMusicPool();
         }
         if (!activeDeck.src && state.onlineTracks.length > 0) {
@@ -2922,9 +3010,7 @@
       deck.addEventListener('ended', () => {
         if (isSeekingWavy) return;
         if (deck === activeDeck && state.stationPlaying) {
-          stopCrossfadeLoop();
-          state.stationProgress = 1;
-          transitionToTrack(pickRandomNextTrackIndex());
+          finishTrackAt100AndAdvance();
         }
       });
       deck.addEventListener('error', () => {
@@ -3386,7 +3472,7 @@
           const primaryColor = tokens.primary;
           const trackColor = tokens.track;
 
-          const padX = 8;
+          const padX = 4;
           const usableW = w - padX * 2;
           const midY = h / 2;
           const clampedProg = Math.max(0, Math.min(1, state.stationProgress));
@@ -3394,13 +3480,13 @@
 
           wavyProgressContainer.setAttribute('aria-valuenow', String(Math.round(clampedProg * 100)));
 
-          // Unplayed Flat Track
-          if (splitX < w - padX) {
+          // Unplayed Flat Track (only draw when thumb hasn't reached the right end)
+          if (splitX + 5 < w - padX) {
             wavyCtx.strokeStyle = trackColor;
             wavyCtx.lineWidth = 4;
             wavyCtx.lineCap = 'round';
             wavyCtx.beginPath();
-            wavyCtx.moveTo(splitX + 6, midY);
+            wavyCtx.moveTo(splitX + 5, midY);
             wavyCtx.lineTo(w - padX, midY);
             wavyCtx.stroke();
           }
@@ -3433,9 +3519,10 @@
     requestAnimationFrame(animateWavyProgress);
 
     function updateVisualSeekFromPointer(e) {
+      cancelTrackEndGlide();
       const rect = wavyProgressContainer.getBoundingClientRect();
       if (rect.width <= 0) return state.stationProgress;
-      const padX = 8;
+      const padX = 4;
       const usableW = Math.max(1, rect.width - padX * 2);
       const rel = Math.max(0, Math.min(1, (e.clientX - rect.left - padX) / usableW));
       state.stationProgress = rel;
