@@ -2458,6 +2458,37 @@
     };
 
     const preloadedRingtones = { focus: [], breakBell: [] };
+    const decodedRingtoneBufferCache = new Map();
+    const pendingRingtoneDecodePromises = new Map();
+
+    function fetchAndDecodeRingtoneUrl(url) {
+      if (decodedRingtoneBufferCache.has(url)) {
+        return Promise.resolve(decodedRingtoneBufferCache.get(url));
+      }
+      if (pendingRingtoneDecodePromises.has(url)) {
+        return pendingRingtoneDecodePromises.get(url);
+      }
+      const p = fetch(url)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+        .then(buf => {
+          ensureAudioCtx();
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          const ctxToUse = audioCtx || (AudioContextClass ? new AudioContextClass() : null);
+          if (!ctxToUse) return null;
+          return ctxToUse.decodeAudioData(buf);
+        })
+        .then(decoded => {
+          if (decoded) decodedRingtoneBufferCache.set(url, decoded);
+          return decoded;
+        })
+        .catch(() => null)
+        .finally(() => {
+          pendingRingtoneDecodePromises.delete(url);
+        });
+      pendingRingtoneDecodePromises.set(url, p);
+      return p;
+    }
+
     function preloadGoogleRingtones() {
       ['focus', 'breakBell'].forEach(key => {
         GOOGLE_RINGTONE_LIBRARY[key].forEach(url => {
@@ -2466,51 +2497,131 @@
           a.src = url;
           a.load();
           preloadedRingtones[key].push(a);
+          fetchAndDecodeRingtoneUrl(url);
         });
       });
     }
     setTimeout(preloadGoogleRingtones, 100);
 
+    function playWebAudioBoostedRingtone(decodedBuf, isFocus, ringDurationMs) {
+      if (!decodedBuf) return false;
+      try {
+        ensureAudioCtx();
+        if (!audioCtx) return false;
+        const now = audioCtx.currentTime;
+        const durationSec = ringDurationMs / 1000;
+        const fadeStartSec = Math.max(0.5, durationSec - 0.55);
+
+        // High-headroom Web Audio pre-amp boost (4.2x for Focus clock ring, 4.6x for Break bell)
+        // with DynamicsCompressorNode so the ringtone is loud, full, and crisp without harsh clipping
+        const volScale = Math.max(0.65, state.masterVolume);
+        const primaryGainVal = volScale * (isFocus ? 4.2 : 4.6);
+
+        const compressor = audioCtx.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-5, now);
+        compressor.knee.setValueAtTime(6, now);
+        compressor.ratio.setValueAtTime(3.5, now);
+        compressor.attack.setValueAtTime(0.002, now);
+        compressor.release.setValueAtTime(0.12, now);
+        compressor.connect(audioCtx.destination);
+
+        // Primary boosted buffer voice + subtle 18ms stereo/harmonic reinforcement voice
+        const voiceConfigs = [
+          { delaySec: 0.0, gainMult: 1.0, rate: 1.0 },
+          { delaySec: 0.018, gainMult: 0.55, rate: 1.002 }
+        ];
+
+        voiceConfigs.forEach(cfg => {
+          const src = audioCtx.createBufferSource();
+          const gainNode = audioCtx.createGain();
+          src.buffer = decodedBuf;
+          src.playbackRate.value = cfg.rate;
+
+          const voicePeakGain = primaryGainVal * cfg.gainMult;
+          gainNode.gain.setValueAtTime(voicePeakGain, now + cfg.delaySec);
+          gainNode.gain.setValueAtTime(voicePeakGain, now + cfg.delaySec + fadeStartSec);
+          gainNode.gain.linearRampToValueAtTime(0.0001, now + cfg.delaySec + durationSec);
+
+          src.connect(gainNode);
+          gainNode.connect(compressor);
+
+          const startOffset = Math.min(0.05, Math.max(0, decodedBuf.duration * 0.02));
+          src.start(now + cfg.delaySec, startOffset);
+          src.stop(now + cfg.delaySec + durationSec + 0.05);
+        });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
     function playSessionCompletionRingtone(completedMode) {
       const isFocus = completedMode === 'focus';
       const urls = isFocus ? GOOGLE_RINGTONE_LIBRARY.focus : GOOGLE_RINGTONE_LIBRARY.breakBell;
-      const ringDurationMs = isFocus ? 3200 : 3400;
-      const targetVol = Math.min(1, Math.max(0.35, state.masterVolume * 0.90));
+      const ringDurationMs = isFocus ? 3300 : 3500;
+      // Full-scale HTML5 Audio volume (1.0 ceiling with high floor) to reinforce Web Audio pre-amp
+      const targetVol = Math.min(1.0, Math.max(0.88, state.masterVolume));
 
+      // 1. Trigger Web Audio pre-amplified (4.2x - 4.6x GainNode boost) buffer playback immediately if cached
+      let webAudioPlayed = false;
+      for (let i = 0; i < urls.length; i++) {
+        const cachedBuf = decodedRingtoneBufferCache.get(urls[i]);
+        if (cachedBuf) {
+          webAudioPlayed = playWebAudioBoostedRingtone(cachedBuf, isFocus, ringDurationMs);
+          if (webAudioPlayed) break;
+        }
+      }
+      if (!webAudioPlayed) {
+        fetchAndDecodeRingtoneUrl(urls[0]).then(dec => {
+          if (dec && !webAudioPlayed) {
+            playWebAudioBoostedRingtone(dec, isFocus, ringDurationMs);
+          }
+        });
+      }
+
+      // 2. Simultaneously play dual-layered full-volume HTML5 <audio> voices (ensures loud playback
+      //    even when browser tab is in background or AudioContext is warming up)
       let played = false;
       function tryPlayUrl(idx) {
         if (idx >= urls.length || played) return;
-        const ringAudio = new Audio(urls[idx]);
-        ringAudio.preload = 'auto';
-        ringAudio.volume = targetVol;
-        // For school bell / classical clock, start right at the active ringing transient
-        ringAudio.currentTime = 0.05;
+        const layerDelays = [0, 22];
+        layerDelays.forEach((delayMs, layerIdx) => {
+          setTimeout(() => {
+            const ringAudio = new Audio(urls[idx]);
+            ringAudio.preload = 'auto';
+            ringAudio.volume = layerIdx === 0 ? targetVol : Math.min(1.0, targetVol * 0.92);
+            // Start right at the active ringing transient
+            ringAudio.currentTime = 0.05;
 
-        const playPromise = ringAudio.play();
-        if (playPromise !== undefined) {
-          playPromise.then(() => {
-            played = true;
-            // Smooth fade-out after ~2.7s so it's a crisp, brief ringtone (#5)
-            const fadeStartMs = ringDurationMs - 600;
-            setTimeout(() => {
-              const fadeSteps = 12;
-              let step = 0;
-              const fadeTimer = setInterval(() => {
-                step++;
-                ringAudio.volume = Math.max(0, targetVol * (1 - step / fadeSteps));
-                if (step >= fadeSteps) {
-                  clearInterval(fadeTimer);
-                  try {
-                    ringAudio.pause();
-                    ringAudio.src = '';
-                  } catch (e) {}
+            const playPromise = ringAudio.play();
+            if (playPromise !== undefined) {
+              playPromise.then(() => {
+                played = true;
+                const fadeStartMs = ringDurationMs - 550;
+                setTimeout(() => {
+                  const fadeSteps = 12;
+                  let step = 0;
+                  const startVol = ringAudio.volume;
+                  const fadeTimer = setInterval(() => {
+                    step++;
+                    ringAudio.volume = Math.max(0, startVol * (1 - step / fadeSteps));
+                    if (step >= fadeSteps) {
+                      clearInterval(fadeTimer);
+                      try {
+                        ringAudio.pause();
+                        ringAudio.src = '';
+                      } catch (e) {}
+                    }
+                  }, 45);
+                }, fadeStartMs);
+              }).catch(() => {
+                if (layerIdx === 0) {
+                  tryPlayUrl(idx + 1);
                 }
-              }, 45);
-            }, fadeStartMs);
-          }).catch(() => {
-            tryPlayUrl(idx + 1);
-          });
-        }
+              });
+            }
+          }, delayMs);
+        });
       }
       tryPlayUrl(0);
     }
