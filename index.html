@@ -1467,6 +1467,8 @@
       restCycleStandardSessions: 0,
       restCycleFocusMinutes: 0,
       restCycleRemainderSeconds: 0,
+      lastFocusActiveTimestamp: 0,
+      restCyclePausedCarryExclusionSecs: 0,
       sessionElapsedMs: 0,
       lastTickStartMs: null,
       tasks: [],
@@ -1635,6 +1637,7 @@
         restCycleStandardSessions: state.restCycleStandardSessions,
         restCycleFocusMinutes: state.restCycleFocusMinutes,
         restCycleRemainderSeconds: state.restCycleRemainderSeconds,
+        lastFocusActiveTimestamp: state.lastFocusActiveTimestamp || 0,
         focusDuration: state.durations.focus,
         darkMode: themeSwitchState.checked
       };
@@ -1678,6 +1681,22 @@
       }
       if (typeof parsed.restCycleRemainderSeconds === 'number' && parsed.restCycleRemainderSeconds >= 0) {
         state.restCycleRemainderSeconds = Math.floor(parsed.restCycleRemainderSeconds) % 60;
+      }
+      if (typeof parsed.lastFocusActiveTimestamp === 'number' && parsed.lastFocusActiveTimestamp >= 0) {
+        state.lastFocusActiveTimestamp = Math.max(state.lastFocusActiveTimestamp || 0, parsed.lastFocusActiveTimestamp);
+      }
+      // If user returned after a long absence (>= 20 mins since last focus activity), expire the non-continuous streak
+      if (!(state.isRunning && state.mode === 'focus')) {
+        const lastAct = state.lastFocusActiveTimestamp || 0;
+        const hasStreak = (state.restCycleStandardSessions || 0) > 0 ||
+          (state.restCycleFocusMinutes || 0) > 0 ||
+          (state.restCycleRemainderSeconds || 0) > 0;
+        if (hasStreak && (!lastAct || (Date.now() - lastAct) >= 20 * 60 * 1000)) {
+          state.restCycleStandardSessions = 0;
+          state.restCycleFocusMinutes = 0;
+          state.restCycleRemainderSeconds = 0;
+          state.lastFocusActiveTimestamp = 0;
+        }
       }
       if (typeof parsed.focusDuration === 'number' && parsed.focusDuration >= 1 && parsed.focusDuration <= 180) {
         const prevFocusDuration = state.durations.focus;
@@ -1821,7 +1840,42 @@
       pullDailyDataFromIPCloud();
     }
 
-    // Live Midnight (00:00) Watcher: automatically clears tasks if 00:00 is reached while app is open
+    // Live Midnight (00:00) & Continuity Gap Watcher:
+    // 1. Automatically clears daily data at 00:00 midnight
+    // 2. Automatically expires the rest-reminder streak if the user has left / been away from focusing for >= 20 minutes
+    const MAX_CONTINUOUS_FOCUS_GAP_MS = 20 * 60 * 1000; // 20 minutes max gap for continuous focus streak
+
+    function checkAndExpireStaleRestCycle(nowTs = Date.now()) {
+      if (state.isRunning && state.mode === 'focus') {
+        state.lastFocusActiveTimestamp = nowTs;
+        return false;
+      }
+      const hasStreakData = (state.restCycleStandardSessions || 0) > 0 ||
+        (state.restCycleFocusMinutes || 0) > 0 ||
+        (state.restCycleRemainderSeconds || 0) > 0;
+      const lastActive = state.lastFocusActiveTimestamp || 0;
+      const isGapTooLong = !lastActive || (nowTs - lastActive) >= MAX_CONTINUOUS_FOCUS_GAP_MS;
+
+      if (isGapTooLong) {
+        // If paused mid-focus and away for >= 20 mins, exclude pre-break elapsed seconds from future continuous streak
+        if (state.mode === 'focus' && !state.isRunning && (state.sessionElapsedMs || 0) > 0) {
+          const pausedSecs = Math.floor((state.sessionElapsedMs || 0) / 1000);
+          if ((state.restCyclePausedCarryExclusionSecs || 0) < pausedSecs) {
+            state.restCyclePausedCarryExclusionSecs = pausedSecs;
+          }
+        }
+        if (hasStreakData) {
+          state.restCycleStandardSessions = 0;
+          state.restCycleFocusMinutes = 0;
+          state.restCycleRemainderSeconds = 0;
+          state.lastFocusActiveTimestamp = 0;
+          saveDailyDataToStorage();
+          return true;
+        }
+      }
+      return false;
+    }
+
     setInterval(() => {
       const nowKey = getTodayDateString();
       if (nowKey !== state.currentDateKey) {
@@ -1833,8 +1887,12 @@
         state.restCycleStandardSessions = 0;
         state.restCycleFocusMinutes = 0;
         state.restCycleRemainderSeconds = 0;
+        state.lastFocusActiveTimestamp = 0;
+        state.restCyclePausedCarryExclusionSecs = 0;
         saveDailyDataToStorage();
         renderTasksAndOverview('all');
+      } else {
+        checkAndExpireStaleRestCycle(Date.now());
       }
     }, 5000);
 
@@ -3945,6 +4003,8 @@
       state.restCycleStandardSessions = 0;
       state.restCycleFocusMinutes = 0;
       state.restCycleRemainderSeconds = 0;
+      state.lastFocusActiveTimestamp = 0;
+      state.restCyclePausedCarryExclusionSecs = 0;
       saveDailyDataToStorage();
     }
 
@@ -3958,28 +4018,34 @@
     }
 
     function recordAbandonedFocusElapsedMinutes() {
+      const nowTs = Date.now();
+      // First check if prior streak expired due to >= 20 min inactivity gap
+      checkAndExpireStaleRestCycle(nowTs);
+
       const elapsedSecs = getElapsedFocusSecondsForAbandon();
       if (elapsedSecs <= 0) return;
 
-      // Precisely accumulate elapsed seconds in background:
-      // - If total accumulated seconds < 60, keep in remainder without displaying a false +1 minute.
-      // - Once accumulated seconds >= 60, convert each full 60s into +1 visible minute in 「专注时长」
-      //   and keep the leftover seconds (< 60s) for future accumulation!
+      // 1. Daily total focus duration in 「专注概览」 always retains all focused seconds today
       const totalFocusCarrySecs = (state.completedFocusRemainderSeconds || 0) + elapsedSecs;
       const addedWholeMinutes = Math.floor(totalFocusCarrySecs / 60);
       state.completedFocusRemainderSeconds = totalFocusCarrySecs % 60;
-
-      const totalRestCarrySecs = (state.restCycleRemainderSeconds || 0) + elapsedSecs;
-      const addedRestMinutes = Math.floor(totalRestCarrySecs / 60);
-      state.restCycleRemainderSeconds = totalRestCarrySecs % 60;
-
       if (addedWholeMinutes > 0) {
         state.completedFocusMinutes += addedWholeMinutes;
       }
-      if (addedRestMinutes > 0) {
-        state.restCycleFocusMinutes += addedRestMinutes;
+
+      // 2. Rest-reminder cycle only accumulates continuous focus seconds (excluding any pre-break segment if user left >= 20m)
+      const continuousElapsedSecs = Math.max(0, elapsedSecs - (state.restCyclePausedCarryExclusionSecs || 0));
+      if (continuousElapsedSecs > 0) {
+        const totalRestCarrySecs = (state.restCycleRemainderSeconds || 0) + continuousElapsedSecs;
+        const addedRestMinutes = Math.floor(totalRestCarrySecs / 60);
+        state.restCycleRemainderSeconds = totalRestCarrySecs % 60;
+        if (addedRestMinutes > 0) {
+          state.restCycleFocusMinutes += addedRestMinutes;
+        }
+        state.lastFocusActiveTimestamp = nowTs;
       }
 
+      state.restCyclePausedCarryExclusionSecs = 0;
       saveDailyDataToStorage();
       renderTasksAndOverview(addedWholeMinutes > 0 ? 'minutesOnly' : null);
     }
@@ -4072,6 +4138,7 @@
       state.timerEndTimestamp = null;
       state.sessionElapsedMs = 0;
       state.lastTickStartMs = null;
+      state.restCyclePausedCarryExclusionSecs = 0;
 
       const modeButtons = [
         { key: 'focus', btn: modeFocusBtn },
@@ -4214,7 +4281,11 @@
 
     function syncTimerFromWallClock() {
       if (!state.isRunning || !state.timerEndTimestamp) return;
-      const remainingMs = state.timerEndTimestamp - Date.now();
+      const now = Date.now();
+      if (state.mode === 'focus') {
+        state.lastFocusActiveTimestamp = now;
+      }
+      const remainingMs = state.timerEndTimestamp - now;
       state.remainingMs = Math.max(0, remainingMs);
       if (remainingMs <= 0) {
         state.timeLeftSeconds = 0;
@@ -4222,9 +4293,6 @@
         updateClockUI();
         handleSessionComplete();
       } else {
-        // Use Math.floor(remainingMs / 1000) and clamp with Math.min(state.timeLeftSeconds, ...)
-        // so the displayed MM:SS counts down immediately (e.g. 25:00 -> 24:59, 05:00 -> 04:59, 15:00 -> 14:59)
-        // and NEVER rounds back up to the initial duration!
         const nextSecs = Math.min(
           state.timeLeftSeconds,
           Math.max(0, Math.floor(remainingMs / 1000))
@@ -4238,9 +4306,17 @@
 
     function startTimer() {
       if (state.isRunning) return;
-      state.isRunning = true;
       const now = Date.now();
+      // Before starting/resuming, check if the user has been away from focusing for >= 20 minutes.
+      // If so, expire the previous rest-reminder streak so this session starts a fresh streak!
+      checkAndExpireStaleRestCycle(now);
+
+      state.isRunning = true;
       state.lastTickStartMs = now;
+      if (state.mode === 'focus') {
+        state.lastFocusActiveTimestamp = now;
+        saveDailyDataToStorage();
+      }
       const totalMs = state.totalSecondsForSession * 1000;
       const startRemMs = (typeof state.remainingMs === 'number' && state.remainingMs > 0 && state.remainingMs <= totalMs)
         ? state.remainingMs
@@ -4248,7 +4324,6 @@
       state.remainingMs = startRemMs;
       state.timerEndTimestamp = now + startRemMs;
 
-      // Immediately step display from initial full duration (25:00 / 05:00 / 15:00) into active countdown (24:59 / 04:59 / 14:59)
       if (state.timeLeftSeconds === state.totalSecondsForSession && state.timeLeftSeconds > 0 && startRemMs >= totalMs - 50) {
         state.timeLeftSeconds = state.totalSecondsForSession - 1;
       }
@@ -4263,6 +4338,9 @@
     function pauseTimer() {
       if (state.isRunning) {
         const now = Date.now();
+        if (state.mode === 'focus') {
+          state.lastFocusActiveTimestamp = now;
+        }
         if (state.lastTickStartMs) {
           state.sessionElapsedMs = (state.sessionElapsedMs || 0) + Math.max(0, now - state.lastTickStartMs);
           state.lastTickStartMs = null;
@@ -4271,7 +4349,6 @@
           const remMs = Math.max(0, state.timerEndTimestamp - now);
           state.remainingMs = remMs;
           const frozenSecs = Math.max(0, Math.floor(remMs / 1000));
-          // Freeze at exact current countdown position; NEVER round up to 25:00 / 05:00 / 15:00!
           state.timeLeftSeconds = Math.min(state.timeLeftSeconds, frozenSecs);
         }
       }
@@ -4293,11 +4370,14 @@
       state.timerEndTimestamp = null;
       state.sessionElapsedMs = 0;
       state.lastTickStartMs = null;
+      state.restCyclePausedCarryExclusionSecs = 0;
       updateClockUI();
     }
 
     function handleSessionComplete() {
       const completedMode = state.mode;
+      const nowTs = Date.now();
+      const excludedPreBreakSecs = state.restCyclePausedCarryExclusionSecs || 0;
       pauseTimer();
       playSessionCompletionRingtone(completedMode);
 
@@ -4308,27 +4388,34 @@
       state.timerEndTimestamp = null;
       state.sessionElapsedMs = 0;
       state.lastTickStartMs = null;
+      state.restCyclePausedCarryExclusionSecs = 0;
       updateClockUI();
 
-      // Requirement #4 & #5:
-      // - When a Focus countdown finishes, record +1 in 「专注次数」 and add duration to 「专注时长」.
-      // - Also update the rest-reminder cycle counters (4 rounds of 25-min standard Pomodoro OR >= 100 mins accumulated focus).
+      // Requirement #4 & #5 (with Continuity / Same-Period Verification):
+      // - Daily overview always records +1 in 「专注次数」 and adds full duration to 「专注时长」.
+      // - Rest reminder cycle ONLY counts continuous focus sessions/minutes without a long absence (>= 20 mins).
       if (completedMode === 'focus') {
         const sessionFocusMins = state.durations.focus;
         state.completedFocusSessions += 1;
         state.completedFocusMinutes += sessionFocusMins;
+        state.lastFocusActiveTimestamp = nowTs;
 
-        if (sessionFocusMins === 25) {
-          state.restCycleStandardSessions = (state.restCycleStandardSessions || 0) + 1;
+        if (excludedPreBreakSecs > 0) {
+          // User paused mid-session and left for >= 20 minutes before returning to finish the remainder:
+          // Only the continuous post-return portion counts toward the new rest-reminder streak!
+          const continuousSecs = Math.max(0, (sessionFocusMins * 60) - excludedPreBreakSecs);
+          const totalRestCarrySecs = (state.restCycleRemainderSeconds || 0) + continuousSecs;
+          state.restCycleFocusMinutes = (state.restCycleFocusMinutes || 0) + Math.floor(totalRestCarrySecs / 60);
+          state.restCycleRemainderSeconds = totalRestCarrySecs % 60;
         } else {
           state.restCycleStandardSessions = (state.restCycleStandardSessions || 0) + 1;
+          state.restCycleFocusMinutes = (state.restCycleFocusMinutes || 0) + sessionFocusMins;
         }
-        state.restCycleFocusMinutes = (state.restCycleFocusMinutes || 0) + sessionFocusMins;
 
         saveDailyDataToStorage();
         renderTasksAndOverview('sessionComplete');
 
-        // Requirement #5: Check if user completed 4 rounds of standard Pomodoro (25 min) OR accumulated >= 100 minutes
+        // Trigger rest reminder ONLY if 4 consecutive focus rounds OR >= 100 continuous focus minutes are reached
         if (state.restCycleStandardSessions >= 4 || state.restCycleFocusMinutes >= 100) {
           openReminderModal({
             title: '辛苦了！',
@@ -4345,7 +4432,7 @@
           });
         }
       } else if (completedMode === 'longBreak') {
-        // Requirement #5: When Long Break countdown naturally finishes, reset the rest reminder mechanism to 0
+        // When Long Break countdown naturally finishes, reset the rest reminder mechanism to 0
         resetRestReminderCycle();
       }
     }
@@ -4733,6 +4820,7 @@
     }
 
     function recoverAudioAndTimerAfterWakeOrReconnect() {
+      checkAndExpireStaleRestCycle(Date.now());
       syncTimerFromWallClock();
       requestWakeLockAndKeepAlive();
       pullDailyDataFromIPCloud();
