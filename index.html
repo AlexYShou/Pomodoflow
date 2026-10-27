@@ -1472,6 +1472,7 @@
       sessionElapsedMs: 0,
       lastTickStartMs: null,
       tasks: [],
+      deletedTaskIds: [],
 
       // Music & Ambient State (100% Real-Time Open Network Discovery — No Built-in Fixed Playlist)
       musicPopoverOpen: false,
@@ -1557,20 +1558,49 @@
     }
 
     // =========================================================================
-    // IP-BASED CROSS-BROWSER DAILY STORAGE ENGINE (#4):
-    //   Keyed by (User's Public IP Address + Today's Date YYYY-MM-DD).
-    //   Syncs tasks & focus overview across different browsers (Chrome, Safari,
-    //   Edge, Firefox) on the same IP within the same day, and automatically
-    //   resets at 00:00 midnight!
+    // IP-BASED CROSS-BROWSER & MULTI-LAYER DAILY STORAGE ENGINE (#4 - v12 Fixed):
+    //   Fixes morning-to-noon data loss via:
+    //   1. Monotonic High-Water-Mark CRDT Merge: Within the same dateKey (YYYY-MM-DD),
+    //      completedFocusSessions and total focus seconds NEVER get overwritten by a
+    //      newly opened zero-state tab (`Math.max` high-water mark + union task merge).
+    //   2. 4-Layer Local Persistence: Synchronously persists across `localStorage`,
+    //      `IndexedDB`, `document.cookie`, and `window.name` so iframe/container reloads
+    //      never lose local state.
+    //   3. Deterministic IPv4-First Public IP Resolution (+ /64 prefix normalization for IPv6)
+    //      so dual-stack networks never switch topic keys between morning and noon.
+    //   4. Rate-Limit-Safe Cloud Sync: Eliminates the 10s/12s ntfy.sh polling that caused
+    //      HTTP 429 rate limiting, and merges across ALL of today's cloud snapshots.
     // =========================================================================
-    let cachedClientIPHash = localStorage.getItem('pomodoflow_cached_ip_hash') || null;
+    const DAILY_BACKUP_STORAGE_KEY = 'pomodoflow_daily_backup_v12';
+    const DAILY_COOKIE_NAME = 'pf_daily_v12';
+    const IDB_DB_NAME = 'pomodoflow_daily_db_v12';
+    const IDB_STORE_NAME = 'daily_state';
+    const MIN_CLOUD_PULL_INTERVAL_MS = 45 * 1000;
+
+    let cachedClientIPHash = localStorage.getItem('pomodoflow_cached_ip_hash_v12') || localStorage.getItem('pomodoflow_cached_ip_hash') || null;
     let lastAppliedCloudTimestamp = 0;
     let ipResolutionPromise = null;
+    let initialCloudSyncCompleted = false;
+    let isPullingFromCloud = false;
+    let lastCloudPullTimeMs = 0;
+    let pendingCloudPushAfterInit = false;
+
+    function normalizeIPForDeterministicHash(rawIp) {
+      const trimmed = String(rawIp || '').trim().toLowerCase();
+      if (!trimmed) return null;
+      // If IPv6 address (contains ':'), normalize to the /64 network prefix (first 4 hextets)
+      // so macOS/Windows/iOS temporary privacy IPv6 rotation between morning and noon never changes the hash!
+      if (trimmed.includes(':')) {
+        const parts = trimmed.split(':').filter(Boolean);
+        return 'v6_' + parts.slice(0, 4).join('_');
+      }
+      return 'v4_' + trimmed.replace(/[^0-9.]/g, '_');
+    }
 
     function sanitizeIPToHash(ipStr) {
-      const clean = String(ipStr || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      if (!clean) return null;
-      // FNV-1a 32-bit deterministic hash + readable prefix so topic key is compact & collision-free
+      const normalized = normalizeIPForDeterministicHash(ipStr);
+      if (!normalized) return null;
+      const clean = normalized.replace(/[^a-z0-9]/g, '_');
       let h = 0x811c9dc5;
       for (let i = 0; i < clean.length; i++) {
         h ^= clean.charCodeAt(i);
@@ -1580,48 +1610,103 @@
     }
 
     async function resolveClientPublicIPHash() {
-      if (cachedClientIPHash) return cachedClientIPHash;
+      if (cachedClientIPHash && cachedClientIPHash.startsWith('ip_v4_')) {
+        return cachedClientIPHash;
+      }
       if (ipResolutionPromise) return ipResolutionPromise;
 
-      const ipFetchers = [
-        fetch('https://api.ipify.org?format=json', { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : Promise.reject())
-          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
-        fetch('https://api64.ipify.org?format=json', { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : Promise.reject())
-          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
-        fetch('https://ipinfo.io/json', { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : Promise.reject())
-          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
-        fetch('https://ipapi.co/json/', { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : Promise.reject())
-          .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
-        fetch('https://www.cloudflare.com/cdn-cgi/trace', { cache: 'no-store' })
-          .then(r => r.ok ? r.text() : Promise.reject())
-          .then(txt => {
-            const m = /ip=([^\s]+)/.exec(txt);
-            return m && m[1] ? sanitizeIPToHash(m[1]) : Promise.reject();
-          })
-      ];
+      ipResolutionPromise = (async () => {
+        // Tier 1: Strictly IPv4-first endpoints so dual-stack networks always resolve to the exact same IPv4 address
+        const ipv4Fetchers = [
+          fetch('https://api.ipify.org?format=json', { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then(d => d && d.ip && !d.ip.includes(':') ? sanitizeIPToHash(d.ip) : Promise.reject()),
+          fetch('https://api4.my-ip.io/v2/ip.json', { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then(d => d && d.ip && !d.ip.includes(':') ? sanitizeIPToHash(d.ip) : Promise.reject()),
+          fetch('https://ipinfo.io/json', { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then(d => d && d.ip && !d.ip.includes(':') ? sanitizeIPToHash(d.ip) : Promise.reject())
+        ];
 
-      ipResolutionPromise = Promise.any(ipFetchers)
-        .then(hash => {
-          if (hash) {
-            cachedClientIPHash = hash;
-            try { localStorage.setItem('pomodoflow_cached_ip_hash', hash); } catch (e) {}
+        try {
+          const v4Hash = await Promise.any(ipv4Fetchers);
+          if (v4Hash) {
+            cachedClientIPHash = v4Hash;
+            try {
+              localStorage.setItem('pomodoflow_cached_ip_hash_v12', v4Hash);
+              localStorage.setItem('pomodoflow_cached_ip_hash', v4Hash);
+            } catch (e) {}
+            return cachedClientIPHash;
           }
-          return cachedClientIPHash;
-        })
-        .catch(() => cachedClientIPHash)
-        .finally(() => { ipResolutionPromise = null; });
+        } catch (e) {}
+
+        // Tier 2: Fallback to dual-stack (normalized to /64 prefix if IPv6)
+        const fallbackFetchers = [
+          fetch('https://api64.ipify.org?format=json', { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then(d => d && d.ip ? sanitizeIPToHash(d.ip) : Promise.reject()),
+          fetch('https://www.cloudflare.com/cdn-cgi/trace', { cache: 'no-store' })
+            .then(r => r.ok ? r.text() : Promise.reject())
+            .then(txt => {
+              const m = /ip=([^\s]+)/.exec(txt);
+              return m && m[1] ? sanitizeIPToHash(m[1]) : Promise.reject();
+            })
+        ];
+
+        try {
+          const fbHash = await Promise.any(fallbackFetchers);
+          if (fbHash) {
+            cachedClientIPHash = fbHash;
+            try {
+              localStorage.setItem('pomodoflow_cached_ip_hash_v12', fbHash);
+              localStorage.setItem('pomodoflow_cached_ip_hash', fbHash);
+            } catch (e) {}
+          }
+        } catch (e) {}
+
+        return cachedClientIPHash;
+      })().finally(() => {
+        ipResolutionPromise = null;
+      });
 
       return ipResolutionPromise;
     }
 
-    function getIPDailyCloudTopicKey() {
+    function getIPDailyCloudTopicKeys() {
       const todayKey = getTodayDateString().replace(/[^0-9]/g, '');
-      const ipPart = cachedClientIPHash || 'default_lan';
-      return `pf_daily_${ipPart}_${todayKey}`;
+      const keys = [];
+      if (cachedClientIPHash) {
+        keys.push(`pf_daily_${cachedClientIPHash}_${todayKey}`);
+      }
+      const legacyHash = localStorage.getItem('pomodoflow_cached_ip_hash');
+      if (legacyHash && legacyHash !== cachedClientIPHash) {
+        keys.push(`pf_daily_${legacyHash}_${todayKey}`);
+      }
+      keys.push(`pf_daily_default_lan_${todayKey}`);
+      return Array.from(new Set(keys));
+    }
+
+    function getTotalFocusSecondsFromPayload(p) {
+      if (!p) return 0;
+      let mins = typeof p.completedFocusMinutes === 'number' && p.completedFocusMinutes >= 0 ? p.completedFocusMinutes : 0;
+      const sess = typeof p.completedFocusSessions === 'number' && p.completedFocusSessions >= 0 ? p.completedFocusSessions : 0;
+      // Clean up legacy 1-min rounding artifact from older schema
+      if (typeof p.completedFocusRemainderSeconds !== 'number' && sess === 0 && mins <= 2) {
+        mins = 0;
+      }
+      const rem = typeof p.completedFocusRemainderSeconds === 'number' && p.completedFocusRemainderSeconds >= 0
+        ? (Math.floor(p.completedFocusRemainderSeconds) % 60)
+        : 0;
+      return (mins * 60) + rem;
+    }
+
+    function payloadHasMeaningfulData(p) {
+      if (!p) return false;
+      return (p.completedFocusSessions || 0) > 0 ||
+        getTotalFocusSecondsFromPayload(p) > 0 ||
+        (Array.isArray(p.tasks) && p.tasks.length > 0) ||
+        (Array.isArray(p.deletedTaskIds) && p.deletedTaskIds.length > 0);
     }
 
     function buildDailyPayload() {
@@ -1631,6 +1716,7 @@
         dateKey: state.currentDateKey,
         updatedAt: lastAppliedCloudTimestamp,
         tasks: state.tasks,
+        deletedTaskIds: Array.isArray(state.deletedTaskIds) ? state.deletedTaskIds : [],
         completedFocusSessions: state.completedFocusSessions,
         completedFocusMinutes: state.completedFocusMinutes,
         completedFocusRemainderSeconds: state.completedFocusRemainderSeconds,
@@ -1643,49 +1729,206 @@
       };
     }
 
+    // Multi-Layer Local Storage Helpers (localStorage + Cookie + window.name + IndexedDB)
+    function writePayloadToLocalLayers(payload) {
+      if (!payload || payload.dateKey !== getTodayDateString()) return;
+      const jsonStr = JSON.stringify(payload);
+      // 1. Primary & Backup localStorage
+      try {
+        localStorage.setItem(DAILY_STORAGE_KEY, jsonStr);
+        localStorage.setItem(DAILY_BACKUP_STORAGE_KEY, jsonStr);
+        localStorage.setItem(`${DAILY_BACKUP_STORAGE_KEY}_${payload.dateKey}`, jsonStr);
+      } catch (e) {}
+
+      // 2. Cookie (compact backup for same-origin/webview reloads)
+      try {
+        const compactPayload = {
+          dateKey: payload.dateKey,
+          updatedAt: payload.updatedAt,
+          completedFocusSessions: payload.completedFocusSessions,
+          completedFocusMinutes: payload.completedFocusMinutes,
+          completedFocusRemainderSeconds: payload.completedFocusRemainderSeconds,
+          restCycleStandardSessions: payload.restCycleStandardSessions,
+          restCycleFocusMinutes: payload.restCycleFocusMinutes,
+          restCycleRemainderSeconds: payload.restCycleRemainderSeconds,
+          lastFocusActiveTimestamp: payload.lastFocusActiveTimestamp,
+          focusDuration: payload.focusDuration,
+          darkMode: payload.darkMode,
+          tasks: Array.isArray(payload.tasks) ? payload.tasks.slice(0, 30) : [],
+          deletedTaskIds: Array.isArray(payload.deletedTaskIds) ? payload.deletedTaskIds.slice(0, 50) : []
+        };
+        const encoded = encodeURIComponent(JSON.stringify(compactPayload));
+        document.cookie = `${DAILY_COOKIE_NAME}=${encoded}; max-age=86400; path=/; SameSite=Lax`;
+      } catch (e) {}
+
+      // 3. window.name backup (survives iframe reloads even if storage is partitioned)
+      try {
+        window.name = 'PF_DAILY_CACHE:' + jsonStr;
+      } catch (e) {}
+
+      // 4. IndexedDB asynchronous durable store
+      writePayloadToIndexedDB(payload);
+    }
+
+    function readPayloadsFromSyncLocalLayers(todayKey) {
+      const candidates = [];
+      const tryParse = (raw) => {
+        if (!raw || typeof raw !== 'string') return;
+        try {
+          const obj = JSON.parse(raw);
+          if (obj && obj.dateKey === todayKey) candidates.push(obj);
+        } catch (e) {}
+      };
+
+      try {
+        tryParse(localStorage.getItem(DAILY_STORAGE_KEY));
+        tryParse(localStorage.getItem(DAILY_BACKUP_STORAGE_KEY));
+        tryParse(localStorage.getItem(`${DAILY_BACKUP_STORAGE_KEY}_${todayKey}`));
+      } catch (e) {}
+
+      try {
+        const match = document.cookie.split('; ').find(row => row.startsWith(`${DAILY_COOKIE_NAME}=`));
+        if (match) {
+          const val = decodeURIComponent(match.split('=').slice(1).join('='));
+          tryParse(val);
+        }
+      } catch (e) {}
+
+      try {
+        if (typeof window.name === 'string' && window.name.startsWith('PF_DAILY_CACHE:')) {
+          tryParse(window.name.slice('PF_DAILY_CACHE:'.length));
+        }
+      } catch (e) {}
+
+      return candidates;
+    }
+
+    function openDailyIndexedDB() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) return reject(new Error('No IndexedDB'));
+        const req = window.indexedDB.open(IDB_DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
+            db.createObjectStore(IDB_STORE_NAME, { keyPath: 'dateKey' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function writePayloadToIndexedDB(payload) {
+      openDailyIndexedDB()
+        .then(db => {
+          const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
+          tx.objectStore(IDB_STORE_NAME).put(payload);
+        })
+        .catch(() => {});
+    }
+
+    function readPayloadFromIndexedDB(todayKey) {
+      return openDailyIndexedDB()
+        .then(db => new Promise((resolve) => {
+          const tx = db.transaction(IDB_STORE_NAME, 'readonly');
+          const req = tx.objectStore(IDB_STORE_NAME).get(todayKey);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        }))
+        .catch(() => null);
+    }
+
+    // CRDT High-Water-Mark Merge:
+    // Guarantees that opening a new tab/session at noon with 0 sessions NEVER overwrites
+    // morning Pomodoro sessions or focus minutes from the same day!
+    function mergeTasksCRDT(localTasks, incomingTasks, deletedIdsSet) {
+      const byId = new Map();
+      const orderedIds = [];
+      const addList = (list) => {
+        if (!Array.isArray(list)) return;
+        for (const t of list) {
+          if (!t || !t.id || deletedIdsSet.has(t.id)) continue;
+          if (!byId.has(t.id)) {
+            orderedIds.push(t.id);
+            byId.set(t.id, { ...t });
+          } else {
+            const existing = byId.get(t.id);
+            const existingTs = existing.updatedAt || 0;
+            const incomingTs = t.updatedAt || 0;
+            byId.set(t.id, {
+              ...existing,
+              ...t,
+              completed: Boolean(existing.completed || t.completed),
+              focusedMinutes: Math.max(existing.focusedMinutes || 0, t.focusedMinutes || 0),
+              updatedAt: Math.max(existingTs, incomingTs)
+            });
+          }
+        }
+      };
+      // Preserve newest ordering first
+      addList(incomingTasks);
+      addList(localTasks);
+      return orderedIds.map(id => byId.get(id));
+    }
+
     function applyDailyPayloadToState(parsed, fromCloud = false) {
       const todayKey = getTodayDateString();
       if (!parsed || parsed.dateKey !== todayKey) return false;
+
       const incomingTs = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 1;
-      if (fromCloud && incomingTs < lastAppliedCloudTimestamp) {
-        return false;
-      }
+      const incomingTotalSecs = getTotalFocusSecondsFromPayload(parsed);
+      const localTotalSecs = (state.completedFocusMinutes * 60) + (state.completedFocusRemainderSeconds || 0);
+      const incomingSessions = typeof parsed.completedFocusSessions === 'number' && parsed.completedFocusSessions >= 0
+        ? parsed.completedFocusSessions
+        : 0;
+
+      // Track whether incoming payload has strictly higher cumulative focus data that local state lacked
+      // (e.g., when a noon tab had 0 sessions and cloud returned morning's 2 sessions!)
+      const incomingHasHigherStats = incomingSessions > state.completedFocusSessions ||
+        incomingTotalSecs > localTotalSecs ||
+        (Array.isArray(parsed.tasks) && parsed.tasks.length > state.tasks.length);
+
       lastAppliedCloudTimestamp = Math.max(lastAppliedCloudTimestamp, incomingTs);
 
+      // 1. Merge deletedTaskIds
+      const mergedDeletedSet = new Set([
+        ...(Array.isArray(state.deletedTaskIds) ? state.deletedTaskIds : []),
+        ...(Array.isArray(parsed.deletedTaskIds) ? parsed.deletedTaskIds : [])
+      ]);
+      state.deletedTaskIds = Array.from(mergedDeletedSet);
+
+      // 2. Merge tasks by ID (union minus deletedTaskIds)
       if (Array.isArray(parsed.tasks)) {
-        state.tasks = parsed.tasks;
+        state.tasks = mergeTasksCRDT(state.tasks, parsed.tasks, mergedDeletedSet);
       }
-      if (typeof parsed.completedFocusSessions === 'number' && parsed.completedFocusSessions >= 0) {
-        state.completedFocusSessions = parsed.completedFocusSessions;
-      }
-      if (typeof parsed.completedFocusMinutes === 'number' && parsed.completedFocusMinutes >= 0) {
-        // Clean up legacy 1-min rounding artifact if migrating from schema without completedFocusRemainderSeconds
-        if (typeof parsed.completedFocusRemainderSeconds !== 'number' && parsed.completedFocusSessions === 0 && parsed.completedFocusMinutes <= 2) {
-          state.completedFocusMinutes = 0;
-        } else {
-          state.completedFocusMinutes = parsed.completedFocusMinutes;
+
+      // 3. Monotonic High-Water-Mark for Today's Completed Focus Sessions & Focus Duration:
+      //    Within the same dateKey, completed sessions and focus duration can ONLY increase!
+      state.completedFocusSessions = Math.max(state.completedFocusSessions, incomingSessions);
+
+      const bestTotalSecs = Math.max(localTotalSecs, incomingTotalSecs);
+      state.completedFocusMinutes = Math.floor(bestTotalSecs / 60);
+      state.completedFocusRemainderSeconds = bestTotalSecs % 60;
+
+      // 4. Merge continuous rest-cycle streak state (choosing whichever has the more recent activity timestamp)
+      const incomingLastAct = typeof parsed.lastFocusActiveTimestamp === 'number' ? parsed.lastFocusActiveTimestamp : 0;
+      const localLastAct = state.lastFocusActiveTimestamp || 0;
+      if (incomingLastAct >= localLastAct) {
+        if (typeof parsed.restCycleStandardSessions === 'number' && parsed.restCycleStandardSessions >= 0) {
+          state.restCycleStandardSessions = Math.max(state.restCycleStandardSessions, parsed.restCycleStandardSessions);
         }
-      }
-      if (typeof parsed.completedFocusRemainderSeconds === 'number' && parsed.completedFocusRemainderSeconds >= 0) {
-        state.completedFocusRemainderSeconds = Math.floor(parsed.completedFocusRemainderSeconds) % 60;
-      }
-      if (typeof parsed.restCycleStandardSessions === 'number' && parsed.restCycleStandardSessions >= 0) {
-        state.restCycleStandardSessions = parsed.restCycleStandardSessions;
-      }
-      if (typeof parsed.restCycleFocusMinutes === 'number' && parsed.restCycleFocusMinutes >= 0) {
-        if (typeof parsed.completedFocusRemainderSeconds !== 'number' && parsed.completedFocusSessions === 0 && parsed.restCycleFocusMinutes <= 2) {
-          state.restCycleFocusMinutes = 0;
-        } else {
-          state.restCycleFocusMinutes = parsed.restCycleFocusMinutes;
+        if (typeof parsed.restCycleFocusMinutes === 'number' && parsed.restCycleFocusMinutes >= 0) {
+          const incStreakSecs = (parsed.restCycleFocusMinutes * 60) + (Math.floor(parsed.restCycleRemainderSeconds || 0) % 60);
+          const locStreakSecs = (state.restCycleFocusMinutes * 60) + (state.restCycleRemainderSeconds || 0);
+          const bestStreakSecs = Math.max(locStreakSecs, incStreakSecs);
+          state.restCycleFocusMinutes = Math.floor(bestStreakSecs / 60);
+          state.restCycleRemainderSeconds = bestStreakSecs % 60;
         }
+        state.lastFocusActiveTimestamp = Math.max(localLastAct, incomingLastAct);
       }
-      if (typeof parsed.restCycleRemainderSeconds === 'number' && parsed.restCycleRemainderSeconds >= 0) {
-        state.restCycleRemainderSeconds = Math.floor(parsed.restCycleRemainderSeconds) % 60;
-      }
-      if (typeof parsed.lastFocusActiveTimestamp === 'number' && parsed.lastFocusActiveTimestamp >= 0) {
-        state.lastFocusActiveTimestamp = Math.max(state.lastFocusActiveTimestamp || 0, parsed.lastFocusActiveTimestamp);
-      }
-      // If user returned after a long absence (>= 20 mins since last focus activity), expire the non-continuous streak
+
+      // If user returned after a long absence (>= 20 mins since last focus activity), expire ONLY the continuous rest-reminder streak,
+      // NEVER today's completedFocusSessions or completedFocusMinutes!
       if (!(state.isRunning && state.mode === 'focus')) {
         const lastAct = state.lastFocusActiveTimestamp || 0;
         const hasStreak = (state.restCycleStandardSessions || 0) > 0 ||
@@ -1698,146 +1941,197 @@
           state.lastFocusActiveTimestamp = 0;
         }
       }
-      if (typeof parsed.focusDuration === 'number' && parsed.focusDuration >= 1 && parsed.focusDuration <= 180) {
-        const prevFocusDuration = state.durations.focus;
-        state.durations.focus = parsed.focusDuration;
-        const isModalOpen = typeof reminderConfirmModal !== 'undefined' && reminderConfirmModal && !reminderConfirmModal.classList.contains('hidden');
-        const isSessionActiveOrPaused = state.isRunning ||
-          state.timeLeftSeconds < state.totalSecondsForSession ||
-          (state.sessionElapsedMs || 0) > 0 ||
-          (typeof state.remainingMs === 'number' && state.remainingMs < state.totalSecondsForSession * 1000) ||
-          isModalOpen;
-        if (!isSessionActiveOrPaused && state.mode === 'focus' && prevFocusDuration !== parsed.focusDuration) {
-          state.totalSecondsForSession = parsed.focusDuration * 60;
-          state.timeLeftSeconds = parsed.focusDuration * 60;
-          state.remainingMs = parsed.focusDuration * 60 * 1000;
+
+      // 5. Apply preferences (focusDuration & darkMode) only if incoming payload is newer or initial load
+      if (!fromCloud || incomingTs >= lastAppliedCloudTimestamp) {
+        if (typeof parsed.focusDuration === 'number' && parsed.focusDuration >= 1 && parsed.focusDuration <= 180) {
+          const prevFocusDuration = state.durations.focus;
+          state.durations.focus = parsed.focusDuration;
+          const isModalOpen = typeof reminderConfirmModal !== 'undefined' && reminderConfirmModal && !reminderConfirmModal.classList.contains('hidden');
+          const isSessionActiveOrPaused = state.isRunning ||
+            state.timeLeftSeconds < state.totalSecondsForSession ||
+            (state.sessionElapsedMs || 0) > 0 ||
+            (typeof state.remainingMs === 'number' && state.remainingMs < state.totalSecondsForSession * 1000) ||
+            isModalOpen;
+          if (!isSessionActiveOrPaused && state.mode === 'focus' && prevFocusDuration !== parsed.focusDuration) {
+            state.totalSecondsForSession = parsed.focusDuration * 60;
+            state.timeLeftSeconds = parsed.focusDuration * 60;
+            state.remainingMs = parsed.focusDuration * 60 * 1000;
+          }
+        }
+        if (typeof parsed.darkMode === 'boolean' && !themeSwitchState.isPressed) {
+          themeSwitchState.checked = parsed.darkMode;
+          themeSwitchState.x.pos = parsed.darkMode ? SWITCH_GEOM.maxX : SWITCH_GEOM.minX;
+          themeSwitchState.x.target = themeSwitchState.x.pos;
+          updateThemeSwitchTargets();
         }
       }
-      if (typeof parsed.darkMode === 'boolean' && !themeSwitchState.isPressed) {
-        themeSwitchState.checked = parsed.darkMode;
-        themeSwitchState.x.pos = parsed.darkMode ? SWITCH_GEOM.maxX : SWITCH_GEOM.minX;
-        themeSwitchState.x.target = themeSwitchState.x.pos;
-        updateThemeSwitchTargets();
+
+      // Persist the merged state across all 4 local storage layers
+      const mergedSnapshot = buildDailyPayload();
+      writePayloadToLocalLayers(mergedSnapshot);
+
+      // If cloud had morning data that had been overwritten by a newer zero-state payload, push repaired merged snapshot back to cloud
+      if (fromCloud && incomingHasHigherStats) {
+        pushDailyDataToIPCloud(mergedSnapshot);
       }
-      try {
-        localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(parsed));
-      } catch (e) {}
+
       renderTasksAndOverview();
       updateClockUI();
       return true;
     }
 
     async function pushDailyDataToIPCloud(payload) {
-      const ipHash = await resolveClientPublicIPHash();
-      if (!ipHash) return;
-      const topicKey = getIPDailyCloudTopicKey();
+      // Guard: Never push an empty zero-state payload to the cloud before the initial cloud pull finishes!
+      if (!initialCloudSyncCompleted && !payloadHasMeaningfulData(payload)) {
+        pendingCloudPushAfterInit = true;
+        return;
+      }
+      await resolveClientPublicIPHash();
+      const topicKeys = getIPDailyCloudTopicKeys();
       const jsonStr = JSON.stringify(payload);
       const b64Str = btoa(unescape(encodeURIComponent(jsonStr)));
 
-      // Redundant Dual-Cloud Push keyed by User Public IP + Today's Date:
-      // 1. ntfy.sh CORS-simple pub/sub cache (stores today's JSON payloads across all browsers on this IP)
-      fetch(`https://ntfy.sh/${topicKey}`, {
-        method: 'POST',
-        body: jsonStr,
-        keepalive: true
-      }).catch(() => {});
+      // Push to primary IP topic key (and default_lan fallback topic key) across both cloud stores
+      for (const topicKey of topicKeys.slice(0, 2)) {
+        // 1. ntfy.sh CORS-simple pub/sub cache
+        fetch(`https://ntfy.sh/${topicKey}`, {
+          method: 'POST',
+          body: jsonStr,
+          keepalive: true
+        }).catch(() => {});
 
-      // 2. keyvalue.immanuel.co REST KV store
-      fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/pomodoflow99/${topicKey}/${encodeURIComponent(b64Str)}`, {
-        method: 'POST',
-        keepalive: true
-      }).catch(() => {});
+        // 2. keyvalue.immanuel.co REST KV store
+        fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/pomodoflow99/${topicKey}/${encodeURIComponent(b64Str)}`, {
+          method: 'POST',
+          keepalive: true
+        }).catch(() => {});
+      }
     }
 
-    async function pullDailyDataFromIPCloud() {
+    async function pullDailyDataFromIPCloud(force = false) {
       const todayKey = getTodayDateString();
       if (state.currentDateKey !== todayKey) return;
-      const ipHash = await resolveClientPublicIPHash();
-      if (!ipHash) return;
-      const topicKey = getIPDailyCloudTopicKey();
+      const nowMs = Date.now();
+      if (isPullingFromCloud) return;
+      if (!force && initialCloudSyncCompleted && (nowMs - lastCloudPullTimeMs) < MIN_CLOUD_PULL_INTERVAL_MS) {
+        return;
+      }
+      isPullingFromCloud = true;
+      lastCloudPullTimeMs = nowMs;
 
-      // Query both cloud stores in parallel and apply whichever has the newest updatedAt timestamp for today
-      const results = await Promise.allSettled([
-        fetch(`https://ntfy.sh/${topicKey}/raw?poll=1&since=24h`, { cache: 'no-store' })
-          .then(r => r.ok ? r.text() : '')
-          .then(text => {
-            const lines = String(text || '').trim().split('\n').filter(Boolean);
-            let newest = null;
-            for (const line of lines) {
-              try {
-                const obj = JSON.parse(line);
-                if (obj && obj.dateKey === todayKey) {
-                  if (!newest || (obj.updatedAt || 0) >= (newest.updatedAt || 0)) {
-                    newest = obj;
-                  }
+      try {
+        await resolveClientPublicIPHash();
+        const topicKeys = getIPDailyCloudTopicKeys();
+        const primaryTopicKey = topicKeys[0];
+
+        const fetchPromises = [];
+        for (const tKey of topicKeys.slice(0, 2)) {
+          // 1. ntfy.sh history scan: Merge ALL messages from today so even if a zero-state was pushed earlier,
+          //    the morning Pomodoro records in the topic history are still recovered!
+          fetchPromises.push(
+            fetch(`https://ntfy.sh/${tKey}/raw?poll=1&since=24h`, { cache: 'no-store' })
+              .then(r => r.ok ? r.text() : '')
+              .then(text => {
+                const lines = String(text || '').trim().split('\n').filter(Boolean);
+                const validObjs = [];
+                for (const line of lines) {
+                  try {
+                    const obj = JSON.parse(line);
+                    if (obj && obj.dateKey === todayKey) {
+                      validObjs.push(obj);
+                    }
+                  } catch (e) {}
                 }
-              } catch (e) {}
-            }
-            return newest;
-          }),
-        fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/pomodoflow99/${topicKey}`, { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : '')
-          .then(val => {
-            if (!val || typeof val !== 'string') return null;
-            const decoded = decodeURIComponent(escape(atob(val)));
-            const obj = JSON.parse(decoded);
-            return (obj && obj.dateKey === todayKey) ? obj : null;
-          })
-      ]);
+                return validObjs;
+              })
+          );
 
-      let bestCloudPayload = null;
-      for (const res of results) {
-        if (res.status === 'fulfilled' && res.value) {
-          if (!bestCloudPayload || (res.value.updatedAt || 0) > (bestCloudPayload.updatedAt || 0)) {
-            bestCloudPayload = res.value;
+          // 2. keyvalue.immanuel.co REST KV store
+          fetchPromises.push(
+            fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/pomodoflow99/${tKey}`, { cache: 'no-store' })
+              .then(r => r.ok ? r.json() : '')
+              .then(val => {
+                if (!val || typeof val !== 'string') return [];
+                const decoded = decodeURIComponent(escape(atob(val)));
+                const obj = JSON.parse(decoded);
+                return (obj && obj.dateKey === todayKey) ? [obj] : [];
+              })
+          );
+        }
+
+        const results = await Promise.allSettled(fetchPromises);
+        const allCloudPayloads = [];
+        for (const res of results) {
+          if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+            allCloudPayloads.push(...res.value);
           }
         }
-      }
 
-      if (bestCloudPayload) {
-        applyDailyPayloadToState(bestCloudPayload, true);
-      } else if (state.tasks.length > 0 || state.completedFocusSessions > 0) {
-        // If this browser already has today's data locally and cloud was empty, seed the IP cloud store
-        pushDailyDataToIPCloud({
-          dateKey: state.currentDateKey,
-          updatedAt: lastAppliedCloudTimestamp || Date.now(),
-          tasks: state.tasks,
-          completedFocusSessions: state.completedFocusSessions,
-          completedFocusMinutes: state.completedFocusMinutes,
-          focusDuration: state.durations.focus,
-          darkMode: themeSwitchState.checked
-        });
+        if (allCloudPayloads.length > 0) {
+          // Sort chronologically and apply every valid snapshot through our monotonic CRDT merger
+          allCloudPayloads.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+          for (const snap of allCloudPayloads) {
+            applyDailyPayloadToState(snap, true);
+          }
+        }
+
+        initialCloudSyncCompleted = true;
+
+        // If local state has meaningful data (or had a pending push queued during init), sync full payload back to cloud
+        if (
+          pendingCloudPushAfterInit ||
+          (allCloudPayloads.length === 0 && (state.tasks.length > 0 || state.completedFocusSessions > 0 || state.completedFocusMinutes > 0 || state.completedFocusRemainderSeconds > 0))
+        ) {
+          pendingCloudPushAfterInit = false;
+          pushDailyDataToIPCloud(buildDailyPayload());
+        }
+      } catch (e) {
+        initialCloudSyncCompleted = true;
+      } finally {
+        isPullingFromCloud = false;
       }
     }
 
     function saveDailyDataToStorage() {
       const payload = buildDailyPayload();
-      try {
-        localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(payload));
-      } catch (e) {}
+      writePayloadToLocalLayers(payload);
       pushDailyDataToIPCloud(payload);
     }
 
     function loadDailyDataFromStorage() {
       const todayKey = getTodayDateString();
       state.currentDateKey = todayKey;
-      try {
-        const raw = localStorage.getItem(DAILY_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.dateKey === todayKey) {
-            applyDailyPayloadToState(parsed, false);
-          } else {
-            state.tasks = [];
-            state.completedFocusSessions = 0;
-            state.completedFocusMinutes = 0;
-            lastAppliedCloudTimestamp = Date.now();
-            localStorage.removeItem(DAILY_STORAGE_KEY);
-          }
+
+      // 1. Read and merge all synchronous local layers (localStorage primary, backup, cookie, window.name)
+      const syncPayloads = readPayloadsFromSyncLocalLayers(todayKey);
+      if (syncPayloads.length > 0) {
+        syncPayloads.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+        for (const p of syncPayloads) {
+          applyDailyPayloadToState(p, false);
         }
-      } catch (e) {}
-      // Immediately pull today's IP-bound data from cloud so opening in another browser restores today's tasks & overview
-      pullDailyDataFromIPCloud();
+      } else {
+        // Check if stale previous-day data is in localStorage and clean it up
+        try {
+          const raw = localStorage.getItem(DAILY_STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (!parsed || parsed.dateKey !== todayKey) {
+              localStorage.removeItem(DAILY_STORAGE_KEY);
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 2. Read and merge from IndexedDB asynchronously (0-5ms)
+      readPayloadFromIndexedDB(todayKey).then(idbPayload => {
+        if (idbPayload && idbPayload.dateKey === todayKey) {
+          applyDailyPayloadToState(idbPayload, false);
+        }
+      });
+
+      // 3. Pull and merge today's IP-bound data from cloud
+      pullDailyDataFromIPCloud(true);
     }
 
     // Live Midnight (00:00) & Continuity Gap Watcher:
@@ -1881,6 +2175,7 @@
       if (nowKey !== state.currentDateKey) {
         state.currentDateKey = nowKey;
         state.tasks = [];
+        state.deletedTaskIds = [];
         state.completedFocusSessions = 0;
         state.completedFocusMinutes = 0;
         state.completedFocusRemainderSeconds = 0;
@@ -4797,7 +5092,8 @@
         id: 'task-' + Date.now(),
         name,
         focusedMinutes,
-        completed: false
+        completed: false,
+        updatedAt: Date.now()
       };
       state.tasks.unshift(newTask);
       saveDailyDataToStorage();
@@ -4815,9 +5111,14 @@
 
       if (action === 'toggle-complete') {
         task.completed = !task.completed;
+        task.updatedAt = Date.now();
         saveDailyDataToStorage();
         renderTasksAndOverview('complete');
       } else if (action === 'delete-task') {
+        if (!Array.isArray(state.deletedTaskIds)) state.deletedTaskIds = [];
+        if (!state.deletedTaskIds.includes(taskId)) {
+          state.deletedTaskIds.push(taskId);
+        }
         state.tasks = state.tasks.filter(t => t.id !== taskId);
         saveDailyDataToStorage();
         renderTasksAndOverview('delete');
@@ -4894,14 +5195,13 @@
             stepBackgroundSafeCrossfade();
             syncStationProgressFromActiveDeck();
           } else if (msg.type === 'bg_network_keepalive') {
-            // Secondary main-thread keepalive ping & IP cloud sync
+            // Secondary main-thread keepalive ping (static CDN only — does NOT spam ntfy.sh every 10s)
             fetch(`https://actions.google.com/sounds/v1/household/lamp_switch_near.ogg?_ka=${Date.now()}`, {
               method: 'HEAD',
               mode: 'no-cors',
               cache: 'no-store',
               keepalive: true
             }).catch(() => {});
-            pullDailyDataFromIPCloud();
           }
         };
       } catch (e) {}
@@ -4961,7 +5261,7 @@
     // Start background network worker immediately on page load
     startBackgroundNetworkWorker();
 
-    // Fallback interval in case Worker is restricted
+    // Fallback interval in case Worker is restricted (static CDN keep-alive every 12s)
     setInterval(() => {
       syncTimerFromWallClock();
       syncStationProgressFromActiveDeck();
@@ -4972,12 +5272,33 @@
         cache: 'no-store',
         keepalive: true
       }).catch(() => {});
-      pullDailyDataFromIPCloud();
     }, 12000);
+
+    // Rate-limit-safe periodic cloud sync every 180s (avoids ntfy.sh HTTP 429)
+    setInterval(() => {
+      pullDailyDataFromIPCloud(false);
+    }, 180000);
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         recoverAudioAndTimerAfterWakeOrReconnect();
+      } else if (document.visibilityState === 'hidden') {
+        // Flush latest daily progress to all local layers & cloud when leaving/closing tab
+        if (payloadHasMeaningfulData(state)) {
+          saveDailyDataToStorage();
+        }
+      }
+    });
+
+    window.addEventListener('pagehide', () => {
+      if (payloadHasMeaningfulData(state)) {
+        saveDailyDataToStorage();
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (payloadHasMeaningfulData(state)) {
+        writePayloadToLocalLayers(buildDailyPayload());
       }
     });
 
