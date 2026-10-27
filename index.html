@@ -224,7 +224,7 @@
 
     /* Universal M3 Expressive Interactive Element */
     .m3-Interactive {
-      will-change: transform, border-radius, flex-grow;
+      will-change: transform;
       user-select: none;
       position: relative;
       overflow: hidden;
@@ -992,6 +992,7 @@
   <script>
     // =========================================================================
     // 1. UNIFIED MATERIAL 3 EXPRESSIVE PHYSICS SPRING ENGINE
+    //    (Real-Time dt-Normalized + Detached-Node Auto-Pruning + Dirty Style Cache)
     // =========================================================================
     class SpringValue {
       constructor(initial, stiffness = 0.22, damping = 0.72) {
@@ -1005,14 +1006,31 @@
         this.target = t;
         this.velocity += impulse;
       }
-      step() {
-        const force = (this.target - this.current) * this.stiffness;
-        this.velocity = (this.velocity + force) * this.damping;
-        this.current += this.velocity;
+      isAtRest() {
+        return Math.abs(this.target - this.current) < 0.001 && Math.abs(this.velocity) < 0.001;
+      }
+      step(steps60 = 1) {
+        if (this.isAtRest()) {
+          if (this.current !== this.target || this.velocity !== 0) {
+            this.current = this.target;
+            this.velocity = 0;
+            return true;
+          }
+          return false;
+        }
+        // Sub-step normalized to real wall-clock time so animations NEVER slow down
+        // regardless of display refresh rate (30Hz / 60Hz / 120Hz) or how long the tab stays open
+        const subSteps = Math.max(1, Math.min(6, Math.ceil(steps60)));
+        const dt = steps60 / subSteps;
+        const dampFactor = dt === 1 ? this.damping : Math.pow(this.damping, dt);
+        for (let i = 0; i < subSteps; i++) {
+          const force = (this.target - this.current) * this.stiffness * dt;
+          this.velocity = (this.velocity + force) * dampFactor;
+          this.current += this.velocity * dt;
+        }
         if (Math.abs(this.target - this.current) < 0.001 && Math.abs(this.velocity) < 0.001) {
           this.current = this.target;
           this.velocity = 0;
-          return false;
         }
         return true;
       }
@@ -1020,6 +1038,15 @@
 
     const springElements = new Map();
     let springLoopRunning = false;
+    let lastSpringTickPerf = 0;
+
+    function pruneDetachedSpringElements() {
+      springElements.forEach((item, el) => {
+        if (!el || !el.isConnected) {
+          springElements.delete(el);
+        }
+      });
+    }
 
     function registerSpringElement(el, config = {}) {
       if (!el) return null;
@@ -1040,7 +1067,10 @@
         hoverRadii: config.hoverRadii || defaultR.map(r => Math.min(34, r + 4)),
         activeRadii: config.activeRadii || defaultR.map(r => Math.max(10, r - 4)),
         useFlex: config.useFlex ?? false,
-        preserveCenterTranslate: config.preserveCenterTranslate ?? false
+        preserveCenterTranslate: config.preserveCenterTranslate ?? false,
+        _lastRadiusStr: "",
+        _lastTransformStr: "",
+        _lastFlexStr: "" 
       };
       springElements.set(el, item);
       applySpringStyles(item);
@@ -1056,20 +1086,30 @@
       const r1 = Math.max(8, item.rTR.current).toFixed(2);
       const r2 = Math.max(8, item.rBR.current).toFixed(2);
       const r3 = Math.max(8, item.rBL.current).toFixed(2);
-      item.el.style.borderRadius = `${r0}px ${r1}px ${r2}px ${r3}px`;
+      const radiusStr = `${r0}px ${r1}px ${r2}px ${r3}px`;
+      if (item._lastRadiusStr !== radiusStr) {
+        item._lastRadiusStr = radiusStr;
+        item.el.style.borderRadius = radiusStr;
+      }
 
       const sx = item.scaleX.current.toFixed(4);
       const sy = item.scaleY.current.toFixed(4);
       const tx = item.tx.current.toFixed(2);
       const ty = item.ty.current.toFixed(2);
-      if (item.preserveCenterTranslate) {
-        item.el.style.transform = `translate3d(calc(-50% + ${tx}px), ${ty}px, 0) scale(${sx}, ${sy})`;
-      } else {
-        item.el.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${sx}, ${sy})`;
+      const transformStr = item.preserveCenterTranslate
+        ? `translate3d(calc(-50% + ${tx}px), ${ty}px, 0) scale(${sx}, ${sy})`
+        : `translate3d(${tx}px, ${ty}px, 0) scale(${sx}, ${sy})`;
+      if (item._lastTransformStr !== transformStr) {
+        item._lastTransformStr = transformStr;
+        item.el.style.transform = transformStr;
       }
 
       if (item.useFlex) {
-        item.el.style.flexGrow = Math.max(0.65, item.flex.current).toFixed(4);
+        const flexStr = Math.max(0.65, item.flex.current).toFixed(4);
+        if (item._lastFlexStr !== flexStr) {
+          item._lastFlexStr = flexStr;
+          item.el.style.flexGrow = flexStr;
+        }
       }
     }
 
@@ -1144,21 +1184,40 @@
     function wakeSpringLoop() {
       if (springLoopRunning) return;
       springLoopRunning = true;
-      function tick() {
+      lastSpringTickPerf = performance.now();
+      function tick(nowPerf) {
+        let dtSec = (nowPerf - lastSpringTickPerf) / 1000;
+        lastSpringTickPerf = nowPerf;
+        if (dtSec <= 0 || dtSec > 0.085) dtSec = 1 / 60;
+        // Normalize physics speed to real wall-clock time (75Hz reference feel so animations stay crisp & fast)
+        const steps60 = dtSec * 75;
+
         let anyActive = false;
-        springElements.forEach(item => {
-          const a1 = item.flex.step();
-          const a2 = item.scaleX.step();
-          const a3 = item.scaleY.step();
-          const a4 = item.tx.step();
-          const a5 = item.ty.step();
-          const a6 = item.rTL.step();
-          const a7 = item.rTR.step();
-          const a8 = item.rBR.step();
-          const a9 = item.rBL.step();
-          applySpringStyles(item);
+        springElements.forEach((item, el) => {
+          if (!el || !el.isConnected) {
+            springElements.delete(el);
+            return;
+          }
+          const a1 = item.useFlex ? item.flex.step(steps60) : false;
+          const a2 = item.scaleX.step(steps60);
+          const a3 = item.scaleY.step(steps60);
+          const a4 = item.tx.step(steps60);
+          const a5 = item.ty.step(steps60);
+          const a6 = item.rTL.step(steps60);
+          const a7 = item.rTR.step(steps60);
+          const a8 = item.rBR.step(steps60);
+          const a9 = item.rBL.step(steps60);
           if (a1 || a2 || a3 || a4 || a5 || a6 || a7 || a8 || a9) {
-            anyActive = true;
+            applySpringStyles(item);
+            if (
+              !item.scaleX.isAtRest() || !item.scaleY.isAtRest() ||
+              !item.tx.isAtRest() || !item.ty.isAtRest() ||
+              !item.rTL.isAtRest() || !item.rTR.isAtRest() ||
+              !item.rBR.isAtRest() || !item.rBL.isAtRest() ||
+              (item.useFlex && !item.flex.isAtRest())
+            ) {
+              anyActive = true;
+            }
           }
         });
         if (anyActive) {
@@ -1240,6 +1299,7 @@
       if (document.body.classList.contains('dark-mode') !== themeSwitchState.checked) {
         document.body.classList.toggle('dark-mode', themeSwitchState.checked);
       }
+      wakeThemeSwitchLoop();
     }
 
     // Google Sound Library Light Switch Sound Effect — Frame-Synchronized with Switch Animation (#3)
@@ -1496,12 +1556,34 @@
     }
 
     let lastSwitchFrameTime = performance.now();
+    let themeSwitchLoopRunning = false;
+
+    function isSwitchChannelAtRest(ch) {
+      return Math.abs(ch.target - ch.pos) < 0.015 && Math.abs(ch.vel) < 0.05;
+    }
+
+    function snapSwitchChannelIfAtRest(ch) {
+      if (isSwitchChannelAtRest(ch)) {
+        ch.pos = ch.target;
+        ch.vel = 0;
+        return false;
+      }
+      return true;
+    }
+
+    function wakeThemeSwitchLoop() {
+      if (themeSwitchLoopRunning) return;
+      themeSwitchLoopRunning = true;
+      lastSwitchFrameTime = performance.now();
+      requestAnimationFrame(animateThemeSwitch);
+    }
+
     function animateThemeSwitch(now) {
       let dt = (now - lastSwitchFrameTime) / 1000;
       lastSwitchFrameTime = now;
-      if (dt > 0.05) dt = 0.016;
+      if (dt <= 0 || dt > 0.065) dt = 1 / 60;
 
-      const steps = 3;
+      const steps = Math.max(3, Math.min(6, Math.ceil(dt * 180)));
       const subDt = dt / steps;
       const k = 380;
       const c = 18;
@@ -1517,6 +1599,14 @@
         stepChannel(themeSwitchState.r, k * 0.9, c * 1.1, subDt);
         stepChannel(themeSwitchState.haloScale, 420, 26, subDt);
       }
+
+      const activeX = snapSwitchChannelIfAtRest(themeSwitchState.x);
+      const activeW = snapSwitchChannelIfAtRest(themeSwitchState.w);
+      const activeH = snapSwitchChannelIfAtRest(themeSwitchState.h);
+      const activeR = snapSwitchChannelIfAtRest(themeSwitchState.r);
+      const activeHalo = snapSwitchChannelIfAtRest(themeSwitchState.haloScale);
+      const stillMoving = activeX || activeW || activeH || activeR || activeHalo ||
+                          themeSwitchState.isDragging || themeSwitchState.isPressed;
 
       const velocityStretch = Math.min(18, Math.abs(themeSwitchState.x.vel) * 0.022);
       const effectiveW = themeSwitchState.w.pos + velocityStretch;
@@ -1554,7 +1644,11 @@
         themeThumbSvg.style.color = '#D97706';
       }
 
-      requestAnimationFrame(animateThemeSwitch);
+      if (stillMoving) {
+        requestAnimationFrame(animateThemeSwitch);
+      } else {
+        themeSwitchLoopRunning = false;
+      }
     }
 
     // =========================================================================
@@ -1838,6 +1932,68 @@
         .catch(() => null);
     }
 
+    // Task Ordering Engine (#2):
+    // - Display order of uncompleted tasks is from bottom to top according to addition time
+    //   (oldest added at the bottom of uncompleted tasks, newest added at the top).
+    // - Tasks marked as completed automatically switch position to the completed section at the bottom.
+    // - Unchecking a completed task automatically restores it to its exact original position
+    //   according to its original addition time (`createdAt` / `createdSeq`).
+    let taskCreationSeqCounter = 0;
+
+    function ensureTaskOrderMetadata(task, fallbackIndex = 0, totalCount = 1) {
+      if (!task || typeof task !== 'object') return task;
+      if (typeof task.createdAt !== 'number' || !isFinite(task.createdAt) || task.createdAt <= 0) {
+        const idMatch = String(task.id || '').match(/(\d{10,})/);
+        if (idMatch) {
+          task.createdAt = parseInt(idMatch[1], 10);
+        } else if (typeof task.updatedAt === 'number' && task.updatedAt > 0) {
+          task.createdAt = task.updatedAt - (totalCount - fallbackIndex) * 1000;
+        } else {
+          task.createdAt = Date.now() - (totalCount - fallbackIndex) * 1000;
+        }
+      }
+      if (typeof task.createdSeq !== 'number' || !isFinite(task.createdSeq)) {
+        task.createdSeq = ++taskCreationSeqCounter;
+      } else if (task.createdSeq > taskCreationSeqCounter) {
+        taskCreationSeqCounter = task.createdSeq;
+      }
+      if (task.completed) {
+        if (typeof task.completedAt !== 'number' || !isFinite(task.completedAt)) {
+          task.completedAt = task.updatedAt || task.createdAt;
+        }
+      } else {
+        task.completedAt = null;
+      }
+      return task;
+    }
+
+    function sortTasksInPlace(tasks) {
+      if (!Array.isArray(tasks)) return [];
+      const len = tasks.length;
+      tasks.forEach((t, idx) => ensureTaskOrderMetadata(t, idx, len));
+      tasks.sort((a, b) => {
+        // 1. Uncompleted tasks always stay in the upper section; completed tasks switch to the bottom section
+        if (Boolean(a.completed) !== Boolean(b.completed)) {
+          return a.completed ? 1 : -1;
+        }
+        // 2. Among uncompleted tasks: ordered from bottom to top by addition time
+        //    (earlier added tasks at the bottom -> higher createdAt at the top of the list)
+        //    When a completed task is unchecked, this exact rule restores it to its original position!
+        if (!a.completed) {
+          if (b.createdAt !== a.createdAt) return b.createdAt - a.createdAt;
+          return (b.createdSeq || 0) - (a.createdSeq || 0);
+        }
+        // 3. Among completed tasks at the bottom: newly completed tasks move down to the bottom,
+        //    or fall back to bottom-to-top addition time
+        const aComp = a.completedAt || a.updatedAt || a.createdAt || 0;
+        const bComp = b.completedAt || b.updatedAt || b.createdAt || 0;
+        if (aComp !== bComp) return aComp - bComp;
+        if (b.createdAt !== a.createdAt) return b.createdAt - a.createdAt;
+        return (b.createdSeq || 0) - (a.createdSeq || 0);
+      });
+      return tasks;
+    }
+
     // CRDT High-Water-Mark Merge:
     // Guarantees that opening a new tab/session at noon with 0 sessions NEVER overwrites
     // morning Pomodoro sessions or focus minutes from the same day!
@@ -1846,29 +2002,36 @@
       const orderedIds = [];
       const addList = (list) => {
         if (!Array.isArray(list)) return;
-        for (const t of list) {
-          if (!t || !t.id || deletedIdsSet.has(t.id)) continue;
+        const total = list.length;
+        list.forEach((rawTask, idx) => {
+          if (!rawTask || !rawTask.id || deletedIdsSet.has(rawTask.id)) return;
+          const t = ensureTaskOrderMetadata({ ...rawTask }, idx, total);
           if (!byId.has(t.id)) {
             orderedIds.push(t.id);
-            byId.set(t.id, { ...t });
+            byId.set(t.id, t);
           } else {
             const existing = byId.get(t.id);
             const existingTs = existing.updatedAt || 0;
             const incomingTs = t.updatedAt || 0;
-            byId.set(t.id, {
+            const newer = incomingTs >= existingTs ? t : existing;
+            const mergedTask = {
               ...existing,
               ...t,
-              completed: Boolean(existing.completed || t.completed),
+              createdAt: Math.min(existing.createdAt || Infinity, t.createdAt || Infinity),
+              createdSeq: Math.min(existing.createdSeq || Infinity, t.createdSeq || Infinity),
+              completed: Boolean(newer.completed),
+              completedAt: newer.completed ? (newer.completedAt || newer.updatedAt || Date.now()) : null,
               focusedMinutes: Math.max(existing.focusedMinutes || 0, t.focusedMinutes || 0),
               updatedAt: Math.max(existingTs, incomingTs)
-            });
+            };
+            byId.set(t.id, mergedTask);
           }
-        }
+        });
       };
-      // Preserve newest ordering first
-      addList(incomingTasks);
       addList(localTasks);
-      return orderedIds.map(id => byId.get(id));
+      addList(incomingTasks);
+      const merged = orderedIds.map(id => byId.get(id));
+      return sortTasksInPlace(merged);
     }
 
     function applyDailyPayloadToState(parsed, fromCloud = false) {
@@ -4181,8 +4344,20 @@
     }
     window.addEventListener('resize', resizeWavyCanvas);
 
-    function animateWavyProgress() {
-      const nowPerf = performance.now();
+    let wavyLoopRunning = false;
+
+    function wakeWavyProgressLoop() {
+      if (wavyLoopRunning || !state.musicPopoverOpen) return;
+      wavyLoopRunning = true;
+      lastWavyFramePerf = performance.now();
+      requestAnimationFrame(animateWavyProgress);
+    }
+
+    function animateWavyProgress(nowPerf) {
+      if (!state.musicPopoverOpen) {
+        wavyLoopRunning = false;
+        return;
+      }
       let dt = (nowPerf - lastWavyFramePerf) / 1000;
       lastWavyFramePerf = nowPerf;
       if (dt <= 0 || dt > 0.1) dt = 0.016;
@@ -4192,71 +4367,68 @@
       syncStationProgressFromActiveDeck();
 
       // 2. Render M3 Expressive Wavy Progress Bar using cached dimensions (ZERO layout reflow when clicking ambient chips #2)
-      if (state.musicPopoverOpen) {
-        if (cachedWavyWidth === 0 || cachedWavyHeight === 0) {
-          resizeWavyCanvas();
+      if (cachedWavyWidth === 0 || cachedWavyHeight === 0) {
+        resizeWavyCanvas();
+      }
+      const w = cachedWavyWidth;
+      const h = cachedWavyHeight;
+      if (w > 0 && h > 0) {
+        wavyCtx.clearRect(0, 0, w, h);
+
+        const realPlaying = isStationAudioActuallyOutputting();
+        const targetAmp = realPlaying ? 4.2 : 0;
+        state.wavyAmp += (targetAmp - state.wavyAmp) * Math.min(1, dt * 10);
+        if (realPlaying) {
+          state.wavyPhase += dt * 6.2;
         }
-        const w = cachedWavyWidth;
-        const h = cachedWavyHeight;
-        if (w > 0 && h > 0) {
-          wavyCtx.clearRect(0, 0, w, h);
 
-          const realPlaying = isStationAudioActuallyOutputting();
-          const targetAmp = realPlaying ? 4.2 : 0;
-          state.wavyAmp += (targetAmp - state.wavyAmp) * Math.min(1, dt * 10);
-          if (realPlaying) {
-            state.wavyPhase += dt * 6.2;
-          }
+        const tokens = getThemeTokens();
+        const primaryColor = tokens.primary;
+        const trackColor = tokens.track;
 
-          const tokens = getThemeTokens();
-          const primaryColor = tokens.primary;
-          const trackColor = tokens.track;
+        const padX = 4;
+        const usableW = w - padX * 2;
+        const midY = h / 2;
+        const clampedProg = Math.max(0, Math.min(1, state.stationProgress));
+        const splitX = padX + usableW * clampedProg;
 
-          const padX = 4;
-          const usableW = w - padX * 2;
-          const midY = h / 2;
-          const clampedProg = Math.max(0, Math.min(1, state.stationProgress));
-          const splitX = padX + usableW * clampedProg;
+        wavyProgressContainer.setAttribute('aria-valuenow', String(Math.round(clampedProg * 100)));
 
-          wavyProgressContainer.setAttribute('aria-valuenow', String(Math.round(clampedProg * 100)));
-
-          // Unplayed Flat Track (only draw when thumb hasn't reached the right end)
-          if (splitX + 5 < w - padX) {
-            wavyCtx.strokeStyle = trackColor;
-            wavyCtx.lineWidth = 4;
-            wavyCtx.lineCap = 'round';
-            wavyCtx.beginPath();
-            wavyCtx.moveTo(splitX + 5, midY);
-            wavyCtx.lineTo(w - padX, midY);
-            wavyCtx.stroke();
-          }
-
-          // Played M3 Expressive Sinusoidal Wave
-          if (splitX > padX) {
-            wavyCtx.strokeStyle = primaryColor;
-            wavyCtx.lineWidth = 4;
-            wavyCtx.lineCap = 'round';
-            wavyCtx.beginPath();
-            for (let x = padX; x <= splitX; x += 2) {
-              const y = midY + Math.sin((x - padX) * 0.22 - state.wavyPhase) * state.wavyAmp;
-              if (x === padX) wavyCtx.moveTo(x, y);
-              else wavyCtx.lineTo(x, y);
-            }
-            wavyCtx.stroke();
-          }
-
-          // Expressive Squircle Thumb Indicator
-          wavyCtx.fillStyle = primaryColor;
-          const thumbW = isSeekingWavy ? 9 : 6;
-          const thumbH = isSeekingWavy ? 22 : 16;
+        // Unplayed Flat Track (only draw when thumb hasn't reached the right end)
+        if (splitX + 5 < w - padX) {
+          wavyCtx.strokeStyle = trackColor;
+          wavyCtx.lineWidth = 4;
+          wavyCtx.lineCap = 'round';
           wavyCtx.beginPath();
-          wavyCtx.roundRect(splitX - thumbW / 2, midY - thumbH / 2, thumbW, thumbH, 4);
-          wavyCtx.fill();
+          wavyCtx.moveTo(splitX + 5, midY);
+          wavyCtx.lineTo(w - padX, midY);
+          wavyCtx.stroke();
         }
+
+        // Played M3 Expressive Sinusoidal Wave
+        if (splitX > padX) {
+          wavyCtx.strokeStyle = primaryColor;
+          wavyCtx.lineWidth = 4;
+          wavyCtx.lineCap = 'round';
+          wavyCtx.beginPath();
+          for (let x = padX; x <= splitX; x += 2) {
+            const y = midY + Math.sin((x - padX) * 0.22 - state.wavyPhase) * state.wavyAmp;
+            if (x === padX) wavyCtx.moveTo(x, y);
+            else wavyCtx.lineTo(x, y);
+          }
+          wavyCtx.stroke();
+        }
+
+        // Expressive Squircle Thumb Indicator
+        wavyCtx.fillStyle = primaryColor;
+        const thumbW = isSeekingWavy ? 9 : 6;
+        const thumbH = isSeekingWavy ? 22 : 16;
+        wavyCtx.beginPath();
+        wavyCtx.roundRect(splitX - thumbW / 2, midY - thumbH / 2, thumbW, thumbH, 4);
+        wavyCtx.fill();
       }
       requestAnimationFrame(animateWavyProgress);
     }
-    requestAnimationFrame(animateWavyProgress);
 
     function updateVisualSeekFromPointer(e) {
       cancelTrackEndGlide();
@@ -4434,6 +4606,7 @@
       if (state.musicPopoverOpen) {
         musicPopoverCard.classList.remove('hidden');
         resizeWavyCanvas();
+        wakeWavyProgressLoop();
         if (cardSpring) {
           cardSpring.scaleX.current = 0.86;
           cardSpring.scaleY.current = 0.86;
@@ -4679,6 +4852,7 @@
       pencilEditDurationBtn.style.display = newMode === 'focus' ? 'flex' : 'none';
 
       updateModeGroupSprings(null, null);
+      wakeThemeSwitchLoop();
       updateClockUI();
     }
 
@@ -4966,7 +5140,27 @@
     //     - 「专注时长」 only counts actual minutes from completed Focus timer countdowns.
     //     - 「完成任务」 only counts tasks marked as completed by the user.
     // =========================================================================
-    function renderTasksAndOverview(changedType = null) {
+    function renderTasksAndOverview(changedType = null, animatedTaskId = null) {
+      // 1. Capture previous vertical positions of existing task rows for smooth FLIP animation
+      const prevRowRects = new Map();
+      if (changedType === 'complete' || changedType === 'add' || changedType === 'delete') {
+        taskListContainer.querySelectorAll('[data-task-row-id]').forEach(rowEl => {
+          const id = rowEl.getAttribute('data-task-row-id');
+          if (id) prevRowRects.set(id, rowEl.getBoundingClientRect().top);
+        });
+      }
+
+      // 2. Prune previous task buttons from springElements BEFORE replacing innerHTML to prevent memory/rAF leak
+      taskListContainer.querySelectorAll('.task-check-btn, .task-del-btn').forEach(btn => {
+        springElements.delete(btn);
+      });
+      pruneDetachedSpringElements();
+
+      // 3. Enforce deterministic order:
+      //    - Uncompleted tasks: from bottom to top by addition time (newest added at top, oldest added at bottom)
+      //    - Completed tasks: automatically moved to the bottom section; unchecking restores original position
+      sortTasksInPlace(state.tasks);
+
       if (state.tasks.length === 0) {
         taskListContainer.innerHTML = `
           <div class="h-full min-h-[120px] flex items-center justify-center text-sm font-semibold" style="color: var(--md-text-muted);">
@@ -4976,9 +5170,9 @@
       } else {
         taskListContainer.innerHTML = state.tasks.map(task => {
           return `
-            <div class="py-3.5 px-2 flex items-center justify-between gap-4">
+            <div data-task-row-id="${escapeHtml(task.id)}" class="py-3.5 px-2 flex items-center justify-between gap-4">
               <div class="flex items-center gap-3.5 min-w-0 flex-1">
-                <button type="button" data-action="toggle-complete" data-id="${task.id}"
+                <button type="button" data-action="toggle-complete" data-id="${escapeHtml(task.id)}"
                         class="task-check-btn w-6 h-6 flex items-center justify-center border-2 shrink-0 m3-Interactive"
                         style="border-radius: ${task.completed ? '12px' : '8px'}; border-color: var(--md-primary); background-color: ${task.completed ? 'var(--md-primary)' : 'transparent'}; color: var(--md-on-primary);">
                   ${task.completed ? `
@@ -4998,7 +5192,7 @@
                   ${task.focusedMinutes} 分钟
                 </span>
 
-                <button type="button" data-action="delete-task" data-id="${task.id}"
+                <button type="button" data-action="delete-task" data-id="${escapeHtml(task.id)}"
                         class="task-del-btn w-8 h-8 flex items-center justify-center m3-Interactive"
                         style="border-radius: 12px; background-color: var(--md-surface); color: var(--md-text-muted);"
                         aria-label="删除任务">
@@ -5035,6 +5229,52 @@
             magnetic: 0.08
           });
         });
+
+        // 4. Play smooth M3 Expressive FLIP transition when tasks switch position
+        if (prevRowRects.size > 0) {
+          const movedRows = [];
+          taskListContainer.querySelectorAll('[data-task-row-id]').forEach(rowEl => {
+            const id = rowEl.getAttribute('data-task-row-id');
+            if (!id) return;
+            if (prevRowRects.has(id)) {
+              const deltaY = prevRowRects.get(id) - rowEl.getBoundingClientRect().top;
+              if (Math.abs(deltaY) > 1) {
+                rowEl.style.transition = 'none';
+                rowEl.style.transform = `translate3d(0, ${deltaY.toFixed(1)}px, 0)`;
+                if (id === animatedTaskId) {
+                  rowEl.style.position = 'relative';
+                  rowEl.style.zIndex = '2';
+                }
+                movedRows.push(rowEl);
+              }
+            } else if (changedType === 'add' && id === animatedTaskId) {
+              rowEl.style.transition = 'none';
+              rowEl.style.opacity = '0';
+              rowEl.style.transform = 'translate3d(0, -14px, 0)';
+              movedRows.push(rowEl);
+            }
+          });
+          if (movedRows.length > 0) {
+            void taskListContainer.offsetHeight;
+            requestAnimationFrame(() => {
+              movedRows.forEach(rowEl => {
+                rowEl.style.transition = 'transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.26s ease';
+                rowEl.style.transform = 'translate3d(0, 0, 0)';
+                rowEl.style.opacity = '1';
+              });
+              setTimeout(() => {
+                movedRows.forEach(rowEl => {
+                  if (!rowEl.isConnected) return;
+                  rowEl.style.transition = '';
+                  rowEl.style.transform = '';
+                  rowEl.style.opacity = '';
+                  rowEl.style.position = '';
+                  rowEl.style.zIndex = '';
+                });
+              }, 360);
+            });
+          }
+        }
       }
 
       const completedTasksCount = state.tasks.filter(t => t.completed).length;
@@ -5203,17 +5443,22 @@
       const name = modalTaskTitle.value.trim();
       if (!name) return;
       const focusedMinutes = Math.max(1, parseInt(modalTaskFocused.value, 10) || state.durations.focus);
+      const nowTs = Date.now();
       const newTask = {
-        id: 'task-' + Date.now(),
+        id: 'task-' + nowTs + '-' + (++taskCreationSeqCounter),
         name,
         focusedMinutes,
         completed: false,
-        updatedAt: Date.now()
+        createdAt: nowTs,
+        createdSeq: taskCreationSeqCounter,
+        completedAt: null,
+        updatedAt: nowTs
       };
       state.tasks.unshift(newTask);
+      sortTasksInPlace(state.tasks);
       saveDailyDataToStorage();
       hideAddTaskModal();
-      renderTasksAndOverview('add');
+      renderTasksAndOverview('add', newTask.id);
     });
 
     taskListContainer.addEventListener('click', (e) => {
@@ -5225,10 +5470,14 @@
       if (!task) return;
 
       if (action === 'toggle-complete') {
+        const nowTs = Date.now();
+        ensureTaskOrderMetadata(task);
         task.completed = !task.completed;
-        task.updatedAt = Date.now();
+        task.completedAt = task.completed ? nowTs : null;
+        task.updatedAt = nowTs;
+        sortTasksInPlace(state.tasks);
         saveDailyDataToStorage();
-        renderTasksAndOverview('complete');
+        renderTasksAndOverview('complete', task.id);
       } else if (action === 'delete-task') {
         if (!Array.isArray(state.deletedTaskIds)) state.deletedTaskIds = [];
         if (!state.deletedTaskIds.includes(taskId)) {
@@ -5236,7 +5485,7 @@
         }
         state.tasks = state.tasks.filter(t => t.id !== taskId);
         saveDailyDataToStorage();
-        renderTasksAndOverview('delete');
+        renderTasksAndOverview('delete', taskId);
       }
     });
 
@@ -5282,10 +5531,10 @@
             'https://www.cloudflare.com/cdn-cgi/trace'
           ];
           let pingCounter = 0;
-          // 1. Unthrottled 250ms background tick for Pomodoro timer, audio progress & crossfade even when screen is off
+          // 1. Unthrottled 500ms background tick for Pomodoro timer, audio progress & crossfade when screen is off
           setInterval(() => {
             self.postMessage({ type: 'bg_tick' });
-          }, 250);
+          }, 500);
           // 2. Unthrottled 10s network keep-alive ping from Worker thread so Wi-Fi stays active when screen turns off
           setInterval(() => {
             const baseUrl = PING_URLS[pingCounter % PING_URLS.length];
@@ -5306,9 +5555,11 @@
           const msg = e.data;
           if (!msg) return;
           if (msg.type === 'bg_tick') {
-            syncTimerFromWallClock();
-            stepBackgroundSafeCrossfade();
-            syncStationProgressFromActiveDeck();
+            if (state.isRunning) syncTimerFromWallClock();
+            if (isCrossfading) stepBackgroundSafeCrossfade();
+            if (state.stationPlaying && document.visibilityState !== 'visible') {
+              syncStationProgressFromActiveDeck();
+            }
           } else if (msg.type === 'bg_network_keepalive') {
             // Secondary main-thread keepalive ping (static CDN only — does NOT spam ntfy.sh every 10s)
             fetch(`https://actions.google.com/sounds/v1/household/lamp_switch_near.ogg?_ka=${Date.now()}`, {
@@ -5427,14 +5678,15 @@
 
     ['pointerdown', 'keydown'].forEach(evt => {
       document.addEventListener(evt, () => {
-        requestWakeLockAndKeepAlive();
+        if (!keepAliveAudioStarted) {
+          requestWakeLockAndKeepAlive();
+        }
       }, { once: false, passive: true });
     });
 
     // Load Today's Persisted Data (or auto-reset if past 00:00) and Render
     loadDailyDataFromStorage();
     updateThemeSwitchTargets();
-    requestAnimationFrame(animateThemeSwitch);
     renderTasksAndOverview();
     updateClockUI();
   </script>
