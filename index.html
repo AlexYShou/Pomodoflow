@@ -3550,6 +3550,52 @@
     let crossfadeIntervalId = null;
     let currentTransitionToken = 0;
     let trackFailureRecoveryTimer = null;
+    let internalDeckSwitchGuardUntil = 0;
+    let endOfTrackHoldTimer = null;
+    let isSeekingWavy = false;
+
+    function markInternalDeckSwitchWindow(durationMs = 550) {
+      internalDeckSwitchGuardUntil = Math.max(internalDeckSwitchGuardUntil, performance.now() + durationMs);
+    }
+
+    function updateSystemMediaSessionState() {
+      if (!("mediaSession" in navigator) || !navigator.mediaSession) return;
+      try {
+        navigator.mediaSession.playbackState = state.stationPlaying ? "playing" : "paused";
+        const currentTrack = state.onlineTracks[state.currentTrackIndex];
+        if (currentTrack && typeof MediaMetadata !== "undefined") {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: currentTrack.title || "Lo-Fi Study Stream",
+            artist: "Pomodoflow 站台",
+            album: "Focus & Study Lo-Fi"
+          });
+        }
+      } catch (e) {}
+    }
+
+    function handleExternalStationPause() {
+      if (!state.stationPlaying) return;
+      state.stationPlaying = false;
+      currentTransitionToken++;
+      clearTrackFailureRecoveryTimer();
+      cancelTrackEndGlide();
+      stopCrossfadeLoop();
+      try { activeDeck.pause(); } catch (e) {}
+      try { inactiveDeck.pause(); } catch (e) {}
+      updateSystemMediaSessionState();
+      syncMusicUIState();
+    }
+
+    function handleExternalStationPlay() {
+      if (state.stationPlaying) return;
+      state.stationPlaying = true;
+      clearTrackFailureRecoveryTimer();
+      updateSystemMediaSessionState();
+      syncMusicUIState();
+      if (state.musicPopoverOpen) {
+        wakeWavyProgressLoop();
+      }
+    }
 
     function clearTrackFailureRecoveryTimer() {
       if (trackFailureRecoveryTimer) {
@@ -3645,6 +3691,7 @@
           state.playedTrackUrls.add(deck.src);
           if (deck === activeDeck) {
             if (state.stationPlaying) {
+              markInternalDeckSwitchWindow(650);
               try { deck.pause(); } catch (e) {}
               transitionToTrack(pickRandomNextTrackIndex());
             } else {
@@ -3716,6 +3763,20 @@
       if (isSeekingWavy || isGlidingToTrackEnd || performance.now() <= seekLockUntil) return;
       if (!state.stationPlaying || !activeDeck) return;
 
+      // Detect silent hardware/OS pause (e.g. AirPods removed from ears) if deck paused after playing
+      if (
+        activeDeck.paused &&
+        !activeDeck.ended &&
+        !activeDeck.error &&
+        !activeDeck.seeking &&
+        endOfTrackHoldTimer === null &&
+        performance.now() >= internalDeckSwitchGuardUntil &&
+        activeDeck.currentTime > 0.15
+      ) {
+        handleExternalStationPause();
+        return;
+      }
+
       if (!isStationAudioActuallyOutputting()) {
         if (activeDeck.currentTime === 0 && pendingSeekRatio === null) {
           state.stationProgress = 0;
@@ -3749,11 +3810,13 @@
         state.playedTrackUrls.add(track.url);
       }
 
+      markInternalDeckSwitchWindow(750);
       setStationTrackTitle(track.title);
       const startRatio = initialSeekRatio !== null ? initialSeekRatio : 0;
       state.stationProgress = startRatio;
       pendingSeekRatio = initialSeekRatio;
       state.stationPlaying = true;
+      updateSystemMediaSessionState();
       syncMusicUIState();
 
       const isBackgroundTab = document.hidden || document.visibilityState === 'hidden';
@@ -3849,9 +3912,11 @@
         state.stationPlaying = false;
         currentTransitionToken++;
         clearTrackFailureRecoveryTimer();
+        cancelTrackEndGlide();
         stopCrossfadeLoop();
         activeDeck.pause();
         inactiveDeck.pause();
+        updateSystemMediaSessionState();
         syncMusicUIState();
       } else {
         if (state.onlineTracks.length === 0) {
@@ -3862,12 +3927,14 @@
           transitionToTrack(pickRandomNextTrackIndex(), state.stationProgress > 0 ? state.stationProgress : null);
         } else if (activeDeck.src) {
           const myToken = ++currentTransitionToken;
+          markInternalDeckSwitchWindow(450);
           clearTrackFailureRecoveryTimer();
           state.stationPlaying = true;
           const currentTrack = state.onlineTracks[state.currentTrackIndex];
           if (currentTrack && currentTrack.url) {
             state.playedTrackUrls.add(currentTrack.url);
           }
+          updateSystemMediaSessionState();
           syncMusicUIState();
           stopCrossfadeLoop();
           activeDeck.muted = false;
@@ -3894,14 +3961,41 @@
     }
 
     [deckA, deckB].forEach(deck => {
+      deck.addEventListener('play', () => {
+        if (deck === activeDeck && !state.stationPlaying) {
+          handleExternalStationPlay();
+        }
+      });
       deck.addEventListener('playing', () => {
-        if (deck === activeDeck && state.stationPlaying) {
+        if (deck === activeDeck) {
+          internalDeckSwitchGuardUntil = 0;
+          if (!state.stationPlaying) {
+            handleExternalStationPlay();
+          }
           if (!verifyDeckFullLengthOrSkip(deck)) return;
           clearTrackFailureRecoveryTimer();
           const currentTrack = state.onlineTracks[state.currentTrackIndex];
           if (currentTrack) applyTrackTuningToDeck(deck, currentTrack);
+          updateSystemMediaSessionState();
           syncStationProgressFromActiveDeck();
         }
+      });
+      deck.addEventListener('pause', () => {
+        // When AirPods are removed from ears (or hardware/OS media pause is triggered),
+        // the browser pauses activeDeck and dispatches this native `pause` event.
+        if (deck !== activeDeck || !state.stationPlaying) return;
+        if (
+          deck.ended ||
+          deck.error ||
+          deck.seeking ||
+          isSeekingWavy ||
+          isGlidingToTrackEnd ||
+          endOfTrackHoldTimer !== null ||
+          performance.now() < internalDeckSwitchGuardUntil
+        ) {
+          return;
+        }
+        handleExternalStationPause();
       });
       deck.addEventListener('loadedmetadata', () => {
         if (!verifyDeckFullLengthOrSkip(deck)) return;
@@ -3934,6 +4028,41 @@
         }
       });
     });
+
+    // Register Web Media Session API Action Handlers for AirPods In-Ear Detection & Stem Controls
+    if ('mediaSession' in navigator && navigator.mediaSession) {
+      const safeSetAction = (action, handler) => {
+        try { navigator.mediaSession.setActionHandler(action, handler); } catch (e) {}
+      };
+      safeSetAction('pause', () => {
+        handleExternalStationPause();
+      });
+      safeSetAction('stop', () => {
+        handleExternalStationPause();
+      });
+      safeSetAction('play', () => {
+        if (!state.stationPlaying) {
+          toggleStationPlayPause();
+        }
+      });
+      safeSetAction('nexttrack', () => {
+        transitionToTrack(pickRandomNextTrackIndex());
+      });
+      safeSetAction('previoustrack', () => {
+        transitionToTrack(pickRandomNextTrackIndex());
+      });
+    }
+
+    // Also listen for Bluetooth / AirPods audio output device changes
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        setTimeout(() => {
+          if (state.stationPlaying && activeDeck && activeDeck.paused && !activeDeck.ended && !isSeekingWavy) {
+            handleExternalStationPause();
+          }
+        }, 120);
+      });
+    }
 
     // =========================================================================
     // 6. BUILT-IN GOOGLE SOUND LIBRARY AMBIENT ENGINE (#2):
@@ -4327,7 +4456,6 @@
     // 7. M3 EXPRESSIVE WAVY PROGRESS BAR (60FPS SYNC + SEEK + CROSSFADE)
     // =========================================================================
     const wavyCtx = wavyProgressCanvas.getContext('2d');
-    let isSeekingWavy = false;
     let cachedWavyWidth = 0;
     let cachedWavyHeight = 0;
     let lastWavyFramePerf = performance.now();
@@ -4441,7 +4569,6 @@
       return rel;
     }
 
-    let endOfTrackHoldTimer = null;
     function commitSeekToActiveDeck(rel) {
       if (endOfTrackHoldTimer) {
         clearTimeout(endOfTrackHoldTimer);
@@ -5602,11 +5729,16 @@
       requestWakeLockAndKeepAlive();
       pullDailyDataFromIPCloud();
 
-      // Resume Station music if it was playing and got interrupted by a network blip
+      // Reconcile Station play/pause UI if audio was paused externally (e.g., AirPods ear detection)
+      // while the window was unfocused, or recover if stopped by an actual network error
       if (state.stationPlaying && activeDeck && activeDeck.paused && !isSeekingWavy) {
-        activeDeck.play().catch(() => {
-          transitionToTrack(pickRandomNextTrackIndex());
-        });
+        if (activeDeck.error) {
+          activeDeck.play().catch(() => {
+            transitionToTrack(pickRandomNextTrackIndex());
+          });
+        } else if (!activeDeck.ended && performance.now() >= internalDeckSwitchGuardUntil) {
+          handleExternalStationPause();
+        }
       }
 
       // Resume all active Ambient sounds if any got paused
